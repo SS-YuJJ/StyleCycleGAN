@@ -7,6 +7,13 @@ from loguru import logger
 import clip
 from torchvision.transforms.functional import normalize
 import torch.nn.functional as F
+import torchvision.transforms as transforms
+
+from random import random
+
+from math import floor, log2
+from models.stylegan2.stylegan2_pytorch import Trainer
+from models.stylegan2.stylegan2_pytorch import image_noise, mixed_list, noise_list, latent_to_w, styles_def_to_tensor
 
 ###############################################################################
 # Helper Functions
@@ -157,6 +164,8 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+    elif netG == 'style':
+        net = StyleGenerator()
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -718,6 +727,9 @@ class ShapeDiscriminator(nn.Module):
 
         return out
 
+########################################################
+#                  CLIPDiscriminator
+########################################################
 
 class CLIPDiscriminator(nn.Module):
     def __init__(
@@ -790,12 +802,13 @@ class CLIPDiscriminator(nn.Module):
 
             out = out.permute(0, 2, 1)              # [b, 768, 197]
 
-            for i in range(self.num_post_processing_layers):
+            for i in range(self.num_post_processing_layers-1):
                 self.post_processing_layers[
                     f"post_processing_layer_{i}"
                 ] = nn.Conv1d(
                     in_channels=out.shape[1],
-                    out_channels=out.shape[1],
+                    out_channels=int(out.shape[1]/2),
+                    # out_channels=out.shape[1],
                     bias=True,
                     kernel_size=3,
                     stride=2,
@@ -804,6 +817,24 @@ class CLIPDiscriminator(nn.Module):
                 out = self.post_processing_layers[f"post_processing_layer_{i}"](out)
                 out = nn.InstanceNorm1d(out.shape[1])(out)
                 out = F.leaky_relu(out)
+
+            last_idx = self.num_post_processing_layers-1
+            self.post_processing_layers[
+                    f"post_processing_layer_{last_idx}"
+                ] = nn.Conv1d(
+                    in_channels=out.shape[1],
+                    out_channels=1,
+                    # out_channels=out.shape[1],
+                    bias=True,
+                    kernel_size=3,
+                    stride=2,
+                    padding=1,
+                )
+            out = self.post_processing_layers[f"post_processing_layer_{last_idx}"](out)
+            out = nn.InstanceNorm1d(out.shape[1])(out)
+            out = F.leaky_relu(out)
+
+            out = out.view(out.shape[0], out.shape[1], 5, 5)
             logger.info(f"Shape of out after convolutional layers {out.shape}")
 
         else:
@@ -839,8 +870,121 @@ class CLIPDiscriminator(nn.Module):
                 out = self.post_processing_layers[f"post_processing_layer_{i}"](out)
                 out = nn.InstanceNorm1d(out.shape[1])(out)
                 out = F.leaky_relu(out)
+            out.view(out.shape[0], out.shape[1], 5, 5)
 
         return out
+
+########################################################
+#                   StyleGenerator
+########################################################
+
+class StyleGenerator(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        stylegan_model_args = dict(
+        name = 'styleGAN2_celebA',
+        results_dir = './results',
+        models_dir = './models',
+        batch_size = 16,
+        base_dir = './models/stylegan_models',
+        gradient_accumulate_every = 1,
+        image_size = 256,
+        network_capacity = 16,
+        fmap_max = 512,
+        transparent = False,
+        lr = 2e-4,
+        lr_mlp = 0.1,
+        ttur_mult = 1.5,
+        rel_disc_loss = 1.5,
+        num_workers = None,
+        save_every = 1000,
+        evaluate_every = 1000,
+        num_image_tiles = 4,
+        trunc_psi = 0.75,
+        fp16 = False,
+        no_pl_reg = False,
+        cl_reg = False,
+        fq_layers = [],
+        fq_dict_size = 256,
+        attn_layers = [],
+        no_const = False,
+        aug_prob = 0.,
+        aug_types = ['translation', 'cutout'],
+        top_k_training = False,
+        generator_top_k_gamma = 0.99,
+        generator_top_k_frac = 0.5,
+        dual_contrast_loss = False,
+        dataset_aug_prob = 0.,
+        calculate_fid_every = None,
+        calculate_fid_num_images = 12800,
+        clear_fid_cache = False,
+        mixed_prob = 0.9,
+        log = False
+    )   
+        stylegan_model = Trainer(**stylegan_model_args)
+        load_from = -1
+        stylegan_model.load(load_from)
+
+        self.stylegan_S = stylegan_model.GAN.S
+        self.stylegan_G = stylegan_model.GAN.G
+
+        self.mixed_prob = 0.9
+        self.image_size = 256
+        self.num_layers = int(log2(self.image_size) - 1)
+        self.latent_dim = 512
+        
+        self.channel_mean = [0.48145466, 0.4578275, 0.40821073]
+        self.channel_std = [0.26862954, 0.26130258, 0.27577711]
+
+        self.clip_encoder = CLIPEncoder(model_name='ViT-B/16')
+
+        self.encoding_linears = nn.Sequential(
+            nn.Linear(512, 512),
+            nn.LayerNorm(512),
+            nn.LeakyReLU(0.2),
+            nn.Linear(512, 512),
+        )
+
+    def get_training_parameters(self, with_names=False):
+        yield from (
+            list(self.stylegan_S.parameters()) 
+            + list(self.encoding_linears.parameters())
+        )
+
+    def forward(self, x):
+        batch_size = x.shape[0]
+        # ============================
+        out = self.clip_encoder(x) # [b, 512]
+        out = out.unsqueeze(1)
+        out = self.encoding_linears(out).squeeze(1)
+        style = [(out, self.num_layers)]
+
+        # =============================
+        # get_latents_fn = mixed_list if random() < self.mixed_prob else noise_list
+        # style = get_latents_fn(batch_size, self.num_layers, self.latent_dim, device='cuda:0')
+        
+        # returns a list of length 1(one noise) or 2(mixed noise), 
+        # consisting of tuple(s): (noise list, layer num)
+        # noise list in 'style' of shape [batch_size, latent_dim] = [b, 512]
+        # if mixed, layer of each noise list sum up to 'num_layers' = 6
+
+        noise = image_noise(batch_size, self.image_size, device=0)
+        # noise shape = [b, 256, 256, 1]
+
+        w_space = latent_to_w(self.stylegan_S, style)
+        # list of tuples (output of stylegan_S, layer num), layer_num unchanged compared to 'style'
+        # noise lists in 'style' are fed into stylegan_S
+        # out shape = [b, latent_dim] = [b, 512]
+
+        w_styles = styles_def_to_tensor(w_space)
+        # w_styles shape = [b, layer_num, latent_dim] = [b, 6, 512]
+
+        generated_images = self.stylegan_G(w_styles, noise)
+        # generated_images shape = [b, 3, 256, 256]
+
+        return generated_images
+
 ###################################################################################
 #                               CLIP Embedding
 ###################################################################################
@@ -851,10 +995,17 @@ class CLIPEmbedding(nn.Module):
         self.model_name = model_name
         self.channel_mean = [0.48145466, 0.4578275, 0.40821073]
         self.channel_std = [0.26862954, 0.26130258, 0.27577711]
+        self.shape_transforms = transforms.Compose(
+            [
+                transforms.Resize(224),
+                transforms.CenterCrop((224, 224))
+            ]
+        )
 
     def model_transforms(self, x):
         # implement a resize for when the image doesn't match the expected size
-
+        # if x.shape[2] != 224:
+        #     x = self.shape_transforms(x)
         return normalize(x, mean=self.channel_mean, std=self.channel_std)
 
     def forward_image(self, x: torch.Tensor):
@@ -910,11 +1061,44 @@ class CLIPEmbedding(nn.Module):
         self.is_built = True
 
     def forward(self, x):
+        x = F.interpolate(x, size=(224, 224), mode='bilinear')
         x = self.model_transforms(x)
         if not self.is_built:
             self.build(input_shape=x.shape)
 
         out = self.forward_image(x)
+
+        return out
+
+
+
+class CLIPEncoder(nn.Module):
+    def __init__(self, model_name: str):
+        super().__init__()
+        self.model_name = model_name
+        self.channel_mean = [0.48145466, 0.4578275, 0.40821073]
+        self.channel_std = [0.26862954, 0.26130258, 0.27577711]
+        self.shape_transforms = transforms.Compose(
+            [
+                transforms.Resize(224),
+                transforms.CenterCrop((224, 224))
+            ]
+        )
+
+        self.clip_model, clip_input_transforms = clip.load(self.model_name, device="cpu")
+        self.clip_model_visual = self.clip_model.visual
+
+
+    def model_transforms(self, x):
+        return normalize(x, mean=self.channel_mean, std=self.channel_std)
+
+
+    def forward(self, x):
+        x = F.interpolate(x, size=(224, 224), mode='bilinear')
+
+        x = self.model_transforms(x)
+
+        out = self.clip_model_visual(x)
 
         return out
 
