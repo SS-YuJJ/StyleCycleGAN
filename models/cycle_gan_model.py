@@ -215,8 +215,10 @@ class CycleGANModel(BaseModel):
         if self.opt.netG =='style':
             self.netG_B.module.clip_encoder.clip_model_visual.zero_grad()
             self.netG_A.module.clip_encoder.clip_model_visual.zero_grad()
-        else:
-            self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
+            self.netG_B.module.stylegan_G.zero_grad()
+            self.netG_A.module.stylegan_G.zero_grad()
+        
+        self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
 
         self.backward_G()             # calculate gradients for G_A and G_B
         self.optimizer_G.step()       # update G_A and G_B's weights
