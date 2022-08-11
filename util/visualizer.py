@@ -5,7 +5,7 @@ import ntpath
 import time
 from . import util, html
 from subprocess import Popen, PIPE
-
+import torchvision
 
 try:
     import wandb
@@ -78,15 +78,16 @@ class Visualizer():
         self.use_wandb = opt.use_wandb
         self.current_epoch = 0
         self.ncols = opt.display_ncols
+        self.use_visdom = opt.use_visdom
         
-        if self.display_id > 0:  # connect to a visdom server given <display_port> and <display_server>
+        if self.use_visdom and self.display_id > 0:  # connect to a visdom server given <display_port> and <display_server>
             import visdom
             self.vis = visdom.Visdom(server=opt.display_server, port=opt.display_port, env=opt.display_env)
             if not self.vis.check_connection():
                 self.create_visdom_connections()
 
         if self.use_wandb:
-            self.wandb_run = wandb.init(project='CycleGAN-and-pix2pix', name=opt.name, config=opt) if not wandb.run else wandb.run
+            self.wandb_run = wandb.init(project='CycleStyleGAN-fullAbsLoss-diffLR', name=opt.name, config=opt) if not wandb.run else wandb.run
             self.wandb_run._label(repo='CycleGAN-and-pix2pix')
 
         if self.use_html:  # create an HTML object at <checkpoints_dir>/web/; images will be saved under <checkpoints_dir>/web/images/
@@ -94,15 +95,18 @@ class Visualizer():
             self.img_dir = os.path.join(self.web_dir, 'images')
             print('create web directory %s...' % self.web_dir)
             util.mkdirs([self.web_dir, self.img_dir])
+        
         # create a logging file to store training losses
         self.log_name = os.path.join(opt.checkpoints_dir, opt.name, 'loss_log.txt')
         with open(self.log_name, "a") as log_file:
             now = time.strftime("%c")
             log_file.write('================ Training Loss (%s) ================\n' % now)
 
+
     def reset(self):
         """Reset the self.saved status"""
         self.saved = False
+
 
     def create_visdom_connections(self):
         """If the program could not connect to Visdom server, this function will start a new server at port < self.port > """
@@ -111,7 +115,8 @@ class Visualizer():
         print('Command: %s' % cmd)
         Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
 
-    def display_current_results(self, visuals, epoch, save_result):
+
+    def display_current_results(self, visuals, epoch, total_iters, save_result):
         """Display current results on visdom; save current results to an HTML file.
 
         Parameters:
@@ -119,7 +124,7 @@ class Visualizer():
             epoch (int) - - the current epoch
             save_result (bool) - - if save the current results to an HTML file
         """
-        if self.display_id > 0:  # show images in the browser using visdom
+        if self.use_visdom and self.display_id > 0:  # show images in the browser using visdom
             ncols = self.ncols
             if ncols > 0:        # show all the images in one visdom panel
                 ncols = min(ncols, len(visuals))
@@ -162,6 +167,7 @@ class Visualizer():
                 idx = 1
                 try:
                     for label, image in visuals.items():
+                        
                         image_numpy = util.tensor2im(image)
                         self.vis.image(image_numpy.transpose([2, 0, 1]), opts=dict(title=label),
                                        win=self.display_id + idx)
@@ -191,19 +197,20 @@ class Visualizer():
             self.saved = True
             # save images to the disk
             for label, image in visuals.items():
+                
                 image_numpy = util.tensor2im(image)
-                img_path = os.path.join(self.img_dir, 'epoch%.3d_%s.png' % (epoch, label))
+                img_path = os.path.join(self.img_dir, 'epoch%.3d[%d iter]_%s.png' % (epoch, total_iters, label))
                 util.save_image(image_numpy, img_path)
 
             # update website
             webpage = html.HTML(self.web_dir, 'Experiment name = %s' % self.name, refresh=1)
             for n in range(epoch, 0, -1):
-                webpage.add_header('epoch [%d]' % n)
+                webpage.add_header('epoch [%d] [%d iter]' % (n, total_iters))
                 ims, txts, links = [], [], []
 
                 for label, image_numpy in visuals.items():
                     image_numpy = util.tensor2im(image)
-                    img_path = 'epoch%.3d_%s.png' % (n, label)
+                    img_path = 'epoch%.3d[%d iter]_%s.png' % (n, total_iters, label)
                     ims.append(img_path)
                     txts.append(label)
                     links.append(img_path)

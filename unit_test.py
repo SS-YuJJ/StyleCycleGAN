@@ -68,20 +68,20 @@ mixed_prob = 0.9
 get_latents_fn = mixed_list if random() < mixed_prob else noise_list
 print(get_latents_fn)
 style = get_latents_fn(batch_size, num_layers, latent_dim, device='cuda:0')
-print(f"****** style shape ******* {(style[0].shape)}")
+print(f"****** style shape ******* {(style)}")
 
-noise = image_noise(batch_size, image_size, device=0)
-print(f"****** noise ******* {noise.shape}")
+# noise = image_noise(batch_size, image_size, device=0)
+# print(f"****** noise ******* {noise.shape}")
 
-w_space = latent_to_w(stylegan_S, style)
-print(f"****** w_space 1******* {len(w_space)}")
-print(f"****** w_space 2******* {(w_space[0][0].shape)}")
-print(f"****** w_space 3******* {(w_space[1][0].shape)}")
-print(f"****** w_space 4******* {(w_space[0][1])}")
-print(f"****** w_space 5******* {(w_space[1][1])}")
+# w_space = latent_to_w(stylegan_S, style)
+# print(f"****** w_space 1******* {len(w_space)}")
+# print(f"****** w_space 2******* {(w_space[0][0].shape)}")
+# print(f"****** w_space 3******* {(w_space[1][0].shape)}")
+# print(f"****** w_space 4******* {(w_space[0][1])}")
+# print(f"****** w_space 5******* {(w_space[1][1])}")
 
-w_styles = styles_def_to_tensor(w_space)
-print(f"****** w_styles ******* {w_styles.shape}")
+# w_styles = styles_def_to_tensor(w_space)
+# print(f"****** w_styles ******* {w_styles.shape}")
 
 # generated_images = stylegan_G(w_styles, noise)
 # print(f"****** generated_images ******* {generated_images.shape}")

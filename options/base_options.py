@@ -20,9 +20,12 @@ class BaseOptions():
     def initialize(self, parser):
         """Define the common options that are used in both training and test."""
 
-        parser.add_argument('--total_iter_max', type=int, default=float("inf"), help='Maximum ')
-
-
+        parser.add_argument('--total_iter_max', type=int, default=float("inf"), help=' ')
+        parser.add_argument('--total_iter_from', type=int, default=0, help=' ')
+        parser.add_argument('--loss_clip_layernum', type=int, default=12, help='The numeber of CLIP visual transformer layers to use, 12 to be the full transformer')
+        parser.add_argument('--use_clip_inner', action='store_true', help='Use the inner feature layers of clip')
+        parser.add_argument('--use_visdom', action='store_true', help='Use visdom display')
+        
         # basic parameters
         parser.add_argument('--dataroot', required=True, help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
         parser.add_argument('--name', type=str, default='experiment_name', help='name of the experiment. It decides where to store samples and models')

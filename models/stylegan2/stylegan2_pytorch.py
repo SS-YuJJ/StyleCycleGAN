@@ -1414,7 +1414,6 @@ class Trainer():
         self.load_config()
 
         name = num
-        print(f"*** num = {num}***")
 
         if num == -1:
             file_paths = [p for p in Path(self.models_dir / self.name).glob('model_*.pt')]
@@ -1427,9 +1426,10 @@ class Trainer():
             print(f'continuing from previous epoch - {name}')
 
         self.steps = name * self.save_every
-
+        # print(self.model_name(name))
         load_data = torch.load(self.model_name(name))
-
+        print(f"**** [StyleGAN] Loading model_{num}.pt ****")
+        
         if 'version' in load_data:
             print(f"loading from version {load_data['version']}")
 

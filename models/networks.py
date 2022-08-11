@@ -1,3 +1,4 @@
+from numpy import pad
 import torch
 import torch.nn as nn
 from torch.nn import init
@@ -122,7 +123,7 @@ def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
         assert(torch.cuda.is_available())
         net.to(gpu_ids[0])
         net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs
-    init_weights(net, init_type, init_gain=init_gain)
+    # init_weights(net, init_type, init_gain=init_gain)
     return net
 
 
@@ -165,42 +166,20 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'style':
-        net = StyleGenerator()
+        net = StyleGenerator(
+            # image_size = 256, 
+            image_size = 128, 
+            # network_capacity = 16,
+            network_capacity = 8,
+            load_from = 2225,
+        )
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
 
 
 def define_D(input_nc, ndf, netD, batch_size, n_layers_D=3, norm='batch', init_type='normal', init_gain=0.02, gpu_ids=[]):
-    """Create a discriminator
 
-    Parameters:
-        input_nc (int)     -- the number of channels in input images
-        ndf (int)          -- the number of filters in the first conv layer
-        netD (str)         -- the architecture's name: basic | n_layers | pixel
-        n_layers_D (int)   -- the number of conv layers in the discriminator; effective when netD=='n_layers'
-        norm (str)         -- the type of normalization layers used in the network.
-        init_type (str)    -- the name of the initialization method.
-        init_gain (float)  -- scaling factor for normal, xavier and orthogonal.
-        gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
-
-    Returns a discriminator
-
-    Our current implementation provides three types of discriminators:
-        [basic]: 'PatchGAN' classifier described in the original pix2pix paper.
-        It can classify whether 70×70 overlapping patches are real or fake.
-        Such a patch-level discriminator architecture has fewer parameters
-        than a full-image discriminator and can work on arbitrarily-sized images
-        in a fully convolutional fashion.
-
-        [n_layers]: With this mode, you can specify the number of conv layers in the discriminator
-        with the parameter <n_layers_D> (default=3 as used in [basic] (PatchGAN).)
-
-        [pixel]: 1x1 PixelGAN discriminator can classify whether a pixel is real or not.
-        It encourages greater color diversity but has no effect on spatial statistics.
-
-    The discriminator has been initialized by <init_net>. It uses Leakly RELU for non-linearity.
-    """
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
 
@@ -210,8 +189,6 @@ def define_D(input_nc, ndf, netD, batch_size, n_layers_D=3, norm='batch', init_t
         net = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer)
     elif netD == 'pixel':     # classify if each pixel is real or fake
         net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
-    elif netD == 'shape':
-        net = ShapeDiscriminator()
     elif netD == 'clip':
         net = CLIPDiscriminator(model_name='ViT-B/16',
                                 num_post_processing_layers=3,
@@ -220,7 +197,6 @@ def define_D(input_nc, ndf, netD, batch_size, n_layers_D=3, norm='batch', init_t
                                 post_processing_type="conv",
                                 # post_processing_type="linear",
                                 train_clip_embedding=False,
-                                # train_clip_embedding=True,
                             )
         net.build((batch_size, 3, 224, 224))
     else:
@@ -565,24 +541,13 @@ class UnetSkipConnectionBlock(nn.Module):
         if self.outermost:
             return self.model(x)
         else:   # add skip connections
-            # print(f"=== x === {x.shape}")
-            # print(f"=== model === {self.model(x).shape}")
-
             return torch.cat([x, self.model(x)], 1)
 
 
 class NLayerDiscriminator(nn.Module):
-    """Defines a PatchGAN discriminator"""
 
     def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d):
-        """Construct a PatchGAN discriminator
 
-        Parameters:
-            input_nc (int)  -- the number of channels in input images
-            ndf (int)       -- the number of filters in the last conv layer
-            n_layers (int)  -- the number of conv layers in the discriminator
-            norm_layer      -- normalization layer
-        """
         super(NLayerDiscriminator, self).__init__()
         if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
             use_bias = norm_layer.func == nn.InstanceNorm2d
@@ -614,22 +579,22 @@ class NLayerDiscriminator(nn.Module):
         sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]  # output 1 channel prediction map
         self.model = nn.Sequential(*sequence)
 
-    def forward(self, input):
+        self.channel_mean = [0.5, 0.5, 0.5]
+        self.channel_std = [0.5, 0.5, 0.5]
+    
+    def get_transforms(self, x):
+        return normalize(x, mean=self.channel_mean, std=self.channel_std)
+
+    def forward(self, x):
         """Standard forward."""
-        return self.model(input)
+        x = self.get_transforms(x)
+        return self.model(x)
 
 
 class PixelDiscriminator(nn.Module):
-    """Defines a 1x1 PatchGAN discriminator (pixelGAN)"""
 
     def __init__(self, input_nc, ndf=64, norm_layer=nn.BatchNorm2d):
-        """Construct a 1x1 PatchGAN discriminator
 
-        Parameters:
-            input_nc (int)  -- the number of channels in input images
-            ndf (int)       -- the number of filters in the last conv layer
-            norm_layer      -- normalization layer
-        """
         super(PixelDiscriminator, self).__init__()
         if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
             use_bias = norm_layer.func == nn.InstanceNorm2d
@@ -650,6 +615,7 @@ class PixelDiscriminator(nn.Module):
         """Standard forward."""
         return self.net(input)
 
+
 class TheDilation(nn.Module):
     def __init__(self, input_nc=3, ndf=64):
         super().__init__()
@@ -668,64 +634,6 @@ class TheDilation(nn.Module):
     def forward(self, x):
         return x + self.dilation_layers(x)
 
-class ShapeDiscriminator(nn.Module):
-    def __init__(self, input_nc=3, ndf=64):
-        super().__init__()
-        torch.autograd.set_detect_anomaly(True)
-        # input [b, 3, 224, 224]
-        self.before_dilation = nn.Sequential(
-            nn.Conv2d(input_nc, 2*ndf, kernel_size=4, stride=2, padding=0), # 112
-            nn.ReLU(),
-            nn.Conv2d(2*ndf, 4*ndf, kernel_size=4, stride=2, padding=0),    # 56
-            nn.InstanceNorm2d(8*ndf),
-            nn.ReLU(),
-            nn.Conv2d(4*ndf, 8*ndf, kernel_size=4, stride=2, padding=0),    # 28
-            nn.InstanceNorm2d(8*ndf),
-            nn.ReLU(),
-            nn.Conv2d(8*ndf, 8*ndf, kernel_size=3, stride=1, padding=0),    # 26
-            nn.InstanceNorm2d(8*ndf),
-
-        )
-
-        # self.linking = nn.Sequential(
-        #     nn.Conv2d(8*ndf, 8*ndf, kernel_size=3, stride=1, padding=0),    # 26
-        #     nn.InstanceNorm2d(8*ndf),
-        #     nn.ReLU(),
-        # )
-
-        # self.dilation_layers = nn.Sequential(
-        #     nn.Conv2d(8*ndf, 8*ndf, kernel_size=3, stride=1, padding=2, dilation=2),
-        #     nn.InstanceNorm2d(8*ndf),
-        #     nn.ReLU(),
-        #     nn.Conv2d(8*ndf, 8*ndf, kernel_size=3, stride=1, padding=2, dilation=2),
-        #     nn.InstanceNorm2d(8*ndf),
-        #     nn.ReLU(),
-        #     nn.Conv2d(8*ndf, 8*ndf, kernel_size=3, stride=1, padding=2, dilation=2),
-        #     nn.InstanceNorm2d(8*ndf),
-        #     nn.ReLU(),
-        # )
-        self.dilation_layers = TheDilation()
-
-        self.after_dilation = nn.Sequential(
-            nn.Conv2d(8*ndf, 8*ndf, kernel_size=3, stride=1, padding=0),    # 26
-            nn.InstanceNorm2d(8*ndf),
-            nn.ReLU(),
-            nn.Conv2d(8*ndf, 1, kernel_size=4, stride=1, padding=0, bias=False),
-        )
-
-    def forward(self, x):
-        before_dil = self.before_dilation(x)
-        # to_add = nn.Identity()(before_dil)
-        # print("====1=====", before_dil.shape)
-        # linking = self.linking(before_dil)
-        # print("====4=====", linking.shape)
-        out = self.dilation_layers(before_dil)
-        # print("====2=====", out.shape)
-        # out += to_add   # skip connection
-        out = self.after_dilation(out)
-        # print("====3=====", out.shape)
-
-        return out
 
 ########################################################
 #                  CLIPDiscriminator
@@ -834,7 +742,6 @@ class CLIPDiscriminator(nn.Module):
             out = nn.InstanceNorm1d(out.shape[1])(out)
             out = F.leaky_relu(out)
 
-            out = out.view(out.shape[0], out.shape[1], 5, 5)
             logger.info(f"Shape of out after convolutional layers {out.shape}")
 
         else:
@@ -870,7 +777,6 @@ class CLIPDiscriminator(nn.Module):
                 out = self.post_processing_layers[f"post_processing_layer_{i}"](out)
                 out = nn.InstanceNorm1d(out.shape[1])(out)
                 out = F.leaky_relu(out)
-            out.view(out.shape[0], out.shape[1], 5, 5)
 
         return out
 
@@ -879,9 +785,13 @@ class CLIPDiscriminator(nn.Module):
 ########################################################
 
 class StyleGenerator(nn.Module):
-    def __init__(self):
+    def __init__(self,
+            image_size = 256, 
+            network_capacity = 16,
+            load_from = -1,
+        ):
         super().__init__()
-
+        
         stylegan_model_args = dict(
         name = 'styleGAN2_celebA',
         results_dir = './results',
@@ -889,8 +799,10 @@ class StyleGenerator(nn.Module):
         batch_size = 16,
         base_dir = './models/stylegan_models',
         gradient_accumulate_every = 1,
-        image_size = 256,
-        network_capacity = 16,
+
+        image_size = image_size,
+        network_capacity = network_capacity,
+
         fmap_max = 512,
         transparent = False,
         lr = 2e-4,
@@ -923,7 +835,7 @@ class StyleGenerator(nn.Module):
         log = False
     )   
         stylegan_model = Trainer(**stylegan_model_args)
-        load_from = -1
+        load_from = load_from
         stylegan_model.load(load_from)
 
         self.stylegan_S = stylegan_model.GAN.S
@@ -939,31 +851,37 @@ class StyleGenerator(nn.Module):
 
         self.clip_encoder = CLIPEncoder(model_name='ViT-B/16')
 
+        hid_dim = 512
         self.encoding_linears = nn.Sequential(
-            nn.Linear(512, 512),
-            nn.LayerNorm(512),
+            nn.Linear(512, hid_dim),
+            nn.LayerNorm(hid_dim),
             nn.LeakyReLU(0.2),
-            nn.Linear(512, 512),
+            nn.Linear(hid_dim, 512),
+            nn.LayerNorm(hid_dim),
         )
 
     def get_training_parameters(self, with_names=False):
-        yield from (
-            list(self.stylegan_S.parameters()) 
-            + list(self.encoding_linears.parameters())
-        )
+        if with_names:
+            yield from (
+                list(self.encoding_linears.named_parameters())
+                + list(self.clip_encoder.named_parameters())
+            )
+
+        else:
+            yield from (
+                list(self.encoding_linears.parameters())
+                + list(self.clip_encoder.parameters())
+            )
 
     def forward(self, x):
         batch_size = x.shape[0]
         # ============================
         out = self.clip_encoder(x) # [b, 512]
         out = out.unsqueeze(1)
-        out = self.encoding_linears(out).squeeze(1)
+        out = self.encoding_linears(out)
+        out = out.squeeze(1)
         style = [(out, self.num_layers)]
-
         # =============================
-        # get_latents_fn = mixed_list if random() < self.mixed_prob else noise_list
-        # style = get_latents_fn(batch_size, self.num_layers, self.latent_dim, device='cuda:0')
-        
         # returns a list of length 1(one noise) or 2(mixed noise), 
         # consisting of tuple(s): (noise list, layer num)
         # noise list in 'style' of shape [batch_size, latent_dim] = [b, 512]
@@ -988,6 +906,8 @@ class StyleGenerator(nn.Module):
 ###################################################################################
 #                               CLIP Embedding
 ###################################################################################
+
+# Outputs the full vit embedding of CLIP -- [197, 768]
 class CLIPEmbedding(nn.Module):
     def __init__(self, model_name: str):
         super().__init__()
@@ -995,25 +915,11 @@ class CLIPEmbedding(nn.Module):
         self.model_name = model_name
         self.channel_mean = [0.48145466, 0.4578275, 0.40821073]
         self.channel_std = [0.26862954, 0.26130258, 0.27577711]
-        self.shape_transforms = transforms.Compose(
-            [
-                transforms.Resize(224),
-                transforms.CenterCrop((224, 224))
-            ]
-        )
 
     def model_transforms(self, x):
-        # implement a resize for when the image doesn't match the expected size
-        # if x.shape[2] != 224:
-        #     x = self.shape_transforms(x)
         return normalize(x, mean=self.channel_mean, std=self.channel_std)
 
     def forward_image(self, x: torch.Tensor):
-        """
-        Receives an input image batch of shape (B, C, H, W),
-        and returns an output sequence of size (B, L, D)
-
-        """
         x = self.clip_model_visual.conv1(x)  # shape = [*, width, grid, grid]
         x = x.reshape(
             x.shape[0], x.shape[1], -1
@@ -1065,33 +971,24 @@ class CLIPEmbedding(nn.Module):
         x = self.model_transforms(x)
         if not self.is_built:
             self.build(input_shape=x.shape)
-
         out = self.forward_image(x)
 
         return out
 
 
-
-class CLIPEncoder(nn.Module):
-    def __init__(self, model_name: str):
+# Outputs the final embedding of CLIP -- 512 tokens
+class CLIPEncoder(nn.Module):       
+    def __init__(self, model_name='ViT-B/16'):
         super().__init__()
         self.model_name = model_name
         self.channel_mean = [0.48145466, 0.4578275, 0.40821073]
         self.channel_std = [0.26862954, 0.26130258, 0.27577711]
-        self.shape_transforms = transforms.Compose(
-            [
-                transforms.Resize(224),
-                transforms.CenterCrop((224, 224))
-            ]
-        )
 
-        self.clip_model, clip_input_transforms = clip.load(self.model_name, device="cpu")
-        self.clip_model_visual = self.clip_model.visual
-
+        clip_model, _ = clip.load(self.model_name, device="cpu")
+        self.clip_model_visual = clip_model.visual
 
     def model_transforms(self, x):
         return normalize(x, mean=self.channel_mean, std=self.channel_std)
-
 
     def forward(self, x):
         x = F.interpolate(x, size=(224, 224), mode='bilinear')
@@ -1101,4 +998,90 @@ class CLIPEncoder(nn.Module):
         out = self.clip_model_visual(x)
 
         return out
+
+
+class CLIPInnerEncoder(nn.Module):
+    def __init__(
+        self, 
+        layer_num,
+        model_name='ViT-B/16', 
+        ):
+
+        super().__init__()  
+
+        assert layer_num < 13, f"The number of CLIP inner layers used should be <= 12, get: {layer_num}"
+        self.model_name = model_name
+        self.layer_num = layer_num
+        
+        self.channel_mean = [0.48145466, 0.4578275, 0.40821073]
+        self.channel_std = [0.26862954, 0.26130258, 0.27577711]
+
+        clip_model, _ = clip.load(self.model_name, device="cpu")
+        self.clip_model_visual = clip_model.visual
+
+    def model_transforms(self, x):
+        return normalize(x, mean=self.channel_mean, std=self.channel_std)
+    
+    def forward_images(self, x):
+        
+        x = self.clip_model_visual.conv1(x)  # shape = [*, width, grid, grid]
+        x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
+        x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
+        x = torch.cat([self.clip_model_visual.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device), x], dim=1)  # shape = [*, grid ** 2 + 1, width]
+        x = x + self.clip_model_visual.positional_embedding.to(x.dtype)
+        x = self.clip_model_visual.ln_pre(x)
+
+        x = x.permute(1, 0, 2)  # NLD -> LND
+        blocks = self.clip_model_visual.transformer.resblocks[:self.layer_num]
+        x = blocks(x)
+        x = x.permute(1, 0, 2)  # LND -> NLD  [b, 197, 768]
+
+        x = x.mean(dim=1)       # [b, 768]
+        
+        return x
+
+    def forward(self, x):
+        x = F.interpolate(x, size=(224, 224), mode='bilinear')
+
+        x = self.model_transforms(x)
+
+        x = self.forward_images(x)      # [b, 768]
+
+        
+
+        return x
+
+
+# class CLIPDiscriminator512(nn.Module):
+#     def __init__(self, model_name='ViT-B/16'):
+#         super().__init__()  
+#         # ============================================
+#         self.clip_embedding = CLIPEncoder(model_name)
+
+#         # ============================================
+#         self.discriminator_layers = nn.Sequential(
+#             nn.Linear(512, 512),
+#             nn.LayerNorm(512),
+#             nn.LeakyReLU(0.2),
+#             nn.Linear(512, 512),
+#         )
+
+#     def get_training_parameters(self, with_names=False):
+#         yield from (
+#             list(self.discriminator_layers.parameters())
+#             # + list(self.clip_embedding.parameters())
+#         )
+
+
+#     def forward(self, x):
+#         # with torch.no_grad():
+#         x = self.clip_embedding(x)        # [b, 512]
+#         x = x.unsqueeze(1)              # [b, 1, 512]
+        
+#         x = self.discriminator_layers(x)
+#         x = x.squeeze(1)                # [b, 1]
+
+#         return x
+
+
 

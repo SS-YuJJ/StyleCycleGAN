@@ -1,0 +1,91 @@
+///////////////////////////////////////////////////// FREQUENT /////////////////////////////////////////////////////
+
+python train.py --dataroot ./datasets/churros2donuts --name churros2donuts --model cycle_gan --netG pretrain_clip_dalle --display_freq 5 --lr 0.0002 --clip_use final_multilinear
+
+python train.py --dataroot ./datasets/churros2donuts --name churros2donuts --model cycle_gan --netG pretrain_clip_dalle --display_freq 5 --lr 0.0002 --clip_use final_conv1d
+
+==============
+python train.py --dataroot ./datasets/churros2donuts --name churros2donuts_clip_before_proj --model cycle_gan --netG pretrain_clip_dalle --display_freq 5 --lr 0.000002 --clip_use clip_last_middle
+
+python train.py --dataroot ./datasets/churros2donuts --name churros2donuts_clip_3out_embed --model cycle_gan --netG pretrain_clip_dalle --display_freq 5 --lr 0.000002 --clip_use final_multilinear
+
+
+
+=============
+
+python train.py --dataroot ./datasets/churros2donuts --name churros2donuts_clip_before_proj --model cycle_gan --netG pretrain_clip_dalle --display_freq 5 --lr 0.000002 --clip_use clip_last_middle
+
+
+python train.py --dataroot ./datasets/churros2donuts --name churros2donuts --model cycle_gan --netG pretrain_clip_dalle --display_freq 10 --lr 0.0002 --clip_use final_duplicate
+
+
+=============
+python train.py --dataroot ./datasets/churros2donuts --name churros2donuts_cyclegan --model cycle_gan
+=============
+
+
+///////////////////////////////////////////////////// SELECTIONS /////////////////////////////////////////////////////
+--clip_use clip_last_middle
+--clip_use final_multilinear
+--clip_use final_onelinear
+--clip_use final_duplicate
+--clip_use final_conv1d
+
+///////////////////
+
+--continue_train
+
+///////////////////////////////////////////////////// New Arch /////////////////////////////////////////////////////
+
+python train.py --dataroot ./datasets/churros2donuts --name churros2donuts_dalle --model cycle_gan --netG pretrain_dalle_only --display_freq 10 --lr 0.0001 --lr_policy plateau
+
+python train.py --dataroot ./datasets/churros2donuts --name churros2donuts_clip --model cycle_gan --netG pretrain_clip_dalle --display_freq 10 --lr 0.0001 --lr_policy plateau
+
+python train.py --dataroot ./datasets/sashimi2chocoCake --name sashimi2chocoCake(dim_trans_4conv1d) --model cycle_gan --netG pretrain_clip_dalle_222 --display_freq 11 --lr 0.00002 --lr_policy plateau
+
+
+python train.py --dataroot ./datasets/churros2donuts --name churros2donuts_originalG_clipD_trainConvOnly_noIDloss --model cycle_gan --netG original_generator --display_freq 25 --lr 0.0002
+
+python train.py --dataroot ./datasets/churros2donuts --name churros2donuts_dalleG_clipD --model cycle_gan --netG  --display_freq 25 --lr 0.0002
+
+///////////////////////
+
+python train.py --dataroot ./datasets/male2female --name male2female_5layerD --model cycle_gan --display_freq 200 --num_threads 2 --batch_size 16 --netG unet_256 --netD n_layers --n_layers_D 5
+
+python test.py --dataroot ./datasets/male2female --name male2female --model cycle_gan --netG unet_256 
+
+
+--crop_size 224
+
+python train.py --dataroot ./datasets/male2female --name male2female_clipDconv_styleG --model cycle_gan --netG style --netD clip --num_threads 2 --batch_size 4 --display_freq 10
+
+
+===========
+name: male2female_clipD_styleG_clipInnerLoss_Layer1
+--use_wandb
+--loss_clip_layernum [INT]
+--use_clip_inner
+
+python train.py --dataroot ./datasets/male2female --model cycle_gan --netG style --netD clip --num_threads 2 --batch_size 1 --name  male2female_clipD_styleG_clipInnerLoss_Layer1 --display_freq 30 --loss_clip_layernum 1
+
+
+======== TEST ======
+
+python test.py --dataroot ./datasets/male2female  --name male2female_clipFullconv_styleG_cyccliploss --model cycle_gan --netG style
+
+==================
+
+======== 6 Different Learning Rates ========
+fullAbsLoss --> use final clip encoder output 512 tokens
+
+--name  male2female_clipD_styleG_fullAbsLoss_lr=1e-5   	( DONE )
+--name  male2female_clipD_styleG_fullAbsLoss_lr=5e-6		( DONE )
+--name  male2female_clipD_styleG_fullAbsLoss_lr=1e-6
+--name  male2female_clipD_styleG_fullAbsLoss_lr=5e-7
+--name  male2female_clipD_styleG_fullAbsLoss_lr=1e-7
+--name  male2female_clipD_styleG_fullAbsLoss_lr=5e-8
+
+
+python train.py --dataroot ./datasets/male2female --model cycle_gan --netG style --netD clip --use_wandb --num_threads 0 --batch_size 1 --display_freq 100 --total_iter_max 10000 --name male2female_clipD_styleG_fullAbsLoss_lr=1e-6 --lr 1e-6
+
+python test.py --dataroot ./datasets/male2female --model cycle_gan --netG style --name male2female_clipD_styleG_fullAbsLoss_lr=5e-6
