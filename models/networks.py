@@ -850,11 +850,13 @@ class StyleGenerator(nn.Module):
         self.channel_mean = [0.48145466, 0.4578275, 0.40821073]
         self.channel_std = [0.26862954, 0.26130258, 0.27577711]
 
-        self.clip_encoder = CLIPWithLinearHead(model_name='ViT-B/16')
-
+        self.clip_encoder = CLIPSequentialOutput(model_name='ViT-B/16') # b, 197, 768
+        self.weighted_average = nn.Conv1d(in_channels=197, out_channels=1,
+                                          kernel_size=1, stride=1, padding=0,
+                                          bias=True)  # b, 1, 768
         hid_dim = 512
         self.encoding_linears = nn.Sequential(
-            nn.Linear(512, hid_dim),
+            nn.Linear(768, hid_dim),
             nn.LayerNorm(hid_dim),
             nn.LeakyReLU(0.2),
             nn.Linear(hid_dim, 512),
@@ -877,10 +879,9 @@ class StyleGenerator(nn.Module):
     def forward(self, x):
         batch_size = x.shape[0]
         # ============================
-        out = self.clip_encoder(x) # [b, 512]
-        out = out.unsqueeze(1)
+        out = self.clip_encoder(x) # [b, 197, 768]
+        out = self.weighted_average(out).squeeze(1)  # [b, 768]
         out = self.encoding_linears(out)
-        out = out.squeeze(1)
         style = [(out, self.num_layers)]
         # =============================
         # returns a list of length 1(one noise) or 2(mixed noise), 
