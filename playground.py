@@ -1,5 +1,5 @@
 from data import unaligned_dataset
-from models.networks import StyleGenerator, CLIPInnerEncoder, CLIPEncoder
+from models.networks import StyleGenerator, CLIPInnerEncoder, CLIPWithLinearHead
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -187,10 +187,10 @@ if __name__ == '__main__':
     )   
 
     
-    pred_clip_encoder = CLIPEncoder().to(DEVICE)
-    real_clip_encoder = CLIPEncoder().to(DEVICE)
+    clip_encoder = CLIPInnerEncoder(layer_num=12).to(DEVICE)
 
-
+    # b, 197, 768
+    # b, 768
     with open(loss_log_path,"a") as f:
         now = time.strftime("%c")
         f.write("===================== Time: [%s] ========================\n"% now)
@@ -200,13 +200,12 @@ if __name__ == '__main__':
         for idx_step in range(TOTAL_iter):
             pred = generator.forward(x_ref)
 
-            pred_clip = pred_clip_encoder(pred)
-            real_clip = real_clip_encoder(x_ref)
+            pred_clip = clip_encoder(pred)
+            real_clip = clip_encoder(x_ref)
 
             loss = F.l1_loss(pred_clip, real_clip)
 
-            pred_clip_encoder.zero_grad()
-            real_clip_encoder.zero_grad()
+            clip_encoder.zero_grad()
 
             generator.clip_encoder.zero_grad()
             generator.stylegan_S.zero_grad()
