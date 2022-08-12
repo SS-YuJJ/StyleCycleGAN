@@ -167,6 +167,7 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'style':
         net = StyleGenerator(
+            device = gpu_ids,
             # image_size = 256, 
             image_size = 128, 
             # network_capacity = 16,
@@ -789,6 +790,7 @@ class CLIPDiscriminator(nn.Module):
 
 class StyleGenerator(nn.Module):
     def __init__(self,
+            device,
             image_size = 256, 
             network_capacity = 16,
             load_from = -1,
@@ -796,6 +798,7 @@ class StyleGenerator(nn.Module):
         super().__init__()
         
         stylegan_model_args = dict(
+        rank = device,
         name = 'styleGAN2_celebA',
         results_dir = './results',
         models_dir = './models',
