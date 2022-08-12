@@ -16,8 +16,8 @@ def tensor2im(input_image, imtype=np.uint8):
         imtype (type)        --  the desired type of the converted numpy array
     """
     input_image = torchvision.utils.make_grid(
-        input_image[:3], 
-        3, 
+        input_image[0], 
+        0, 
         normalize= True
     )
     
