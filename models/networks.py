@@ -683,11 +683,11 @@ class CLIPDiscriminator(nn.Module):
     def build(self, input_shape):
         x = torch.zeros(input_shape)
 
-        self.clip_embedding = CLIPEmbedding(self.model_name)
+        self.clip_embedding = CLIPSequentialOutput(self.model_name)
 
         out = self.clip_embedding.forward(x)        # [b, 197, 768]
         
-        self.post_processing_layers = nn.ModuleDict()
+        self.post_processing_layers = nn.ModuleDict() # shape -> [b, 197, 768]
 
         if self.post_processing_type == "linear":
             out = out.mean(dim=1)
@@ -711,7 +711,7 @@ class CLIPDiscriminator(nn.Module):
 
             out = out.permute(0, 2, 1)              # [b, 768, 197]
 
-            for i in range(self.num_post_processing_layers-1):
+            for i in range(self.num_post_processing_layers):
                 self.post_processing_layers[
                     f"post_processing_layer_{i}"
                 ] = nn.Conv1d(
@@ -727,9 +727,8 @@ class CLIPDiscriminator(nn.Module):
                 out = nn.InstanceNorm1d(out.shape[1])(out)
                 out = F.leaky_relu(out)
 
-            last_idx = self.num_post_processing_layers-1
             self.post_processing_layers[
-                    f"post_processing_layer_{last_idx}"
+                    f"output_layer"
                 ] = nn.Conv1d(
                     in_channels=out.shape[1],
                     out_channels=1,
@@ -739,9 +738,10 @@ class CLIPDiscriminator(nn.Module):
                     stride=2,
                     padding=1,
                 )
-            out = self.post_processing_layers[f"post_processing_layer_{last_idx}"](out)
-            out = nn.InstanceNorm1d(out.shape[1])(out)
-            out = F.leaky_relu(out)
+            out = self.post_processing_layers[
+                    f"output_layer"
+                ](out)
+
 
             logger.info(f"Shape of out after convolutional layers {out.shape}")
 
@@ -778,6 +778,8 @@ class CLIPDiscriminator(nn.Module):
                 out = self.post_processing_layers[f"post_processing_layer_{i}"](out)
                 out = nn.InstanceNorm1d(out.shape[1])(out)
                 out = F.leaky_relu(out)
+
+            out = self.post_processing_layers["output_layer"].forward(out)
 
         return out
 
@@ -836,7 +838,6 @@ class StyleGenerator(nn.Module):
         log = False
     )   
         stylegan_model = Trainer(**stylegan_model_args)
-        load_from = load_from
         stylegan_model.load(load_from)
 
         self.stylegan_S = stylegan_model.GAN.S
@@ -847,21 +848,14 @@ class StyleGenerator(nn.Module):
         self.num_layers = int(log2(self.image_size) - 1)
         self.latent_dim = 512
         
-<<<<<<< Updated upstream
-        self.channel_mean = [0.48145466, 0.4578275, 0.40821073]
-        self.channel_std = [0.26862954, 0.26130258, 0.27577711]
-
-        self.clip_encoder = CLIPEncoder(model_name='ViT-B/16')
-=======
         self.clip_encoder = CLIPSequentialOutput(model_name='ViT-B/16') # b, 197, 768
         self.weighted_average = nn.Conv1d(in_channels=197, out_channels=1,
                                           kernel_size=1, stride=1, padding=0,
                                           bias=True)  # b, 1, 768
->>>>>>> Stashed changes
 
         hid_dim = 512
         self.encoding_linears = nn.Sequential(
-            nn.Linear(512, hid_dim),
+            nn.Linear(768, hid_dim),
             nn.LayerNorm(hid_dim),
             nn.LeakyReLU(0.2),
             nn.Linear(hid_dim, 512),
@@ -890,10 +884,9 @@ class StyleGenerator(nn.Module):
     def forward(self, x):
         batch_size = x.shape[0]
         # ============================
-        out = self.clip_encoder(x) # [b, 512]
-        out = out.unsqueeze(1)
+        out = self.clip_encoder(x) # [b, 197, 768]
+        out = self.weighted_average(out).squeeze(1)  # [b, 768]
         out = self.encoding_linears(out)
-        out = out.squeeze(1)
         style = [(out, self.num_layers)]
         # =============================
         # returns a list of length 1(one noise) or 2(mixed noise), 
@@ -922,7 +915,7 @@ class StyleGenerator(nn.Module):
 ###################################################################################
 
 # Outputs the full vit embedding of CLIP -- [197, 768]
-class CLIPEmbedding(nn.Module):
+class CLIPSequentialOutput(nn.Module):
     def __init__(self, model_name: str):
         super().__init__()
         self.is_built = False
@@ -991,7 +984,7 @@ class CLIPEmbedding(nn.Module):
 
 
 # Outputs the final embedding of CLIP -- 512 tokens
-class CLIPEncoder(nn.Module):       
+class CLIPWithLinearHead(nn.Module):
     def __init__(self, model_name='ViT-B/16'):
         super().__init__()
         self.model_name = model_name
@@ -1050,8 +1043,6 @@ class CLIPInnerEncoder(nn.Module):
         x = blocks(x)
         x = x.permute(1, 0, 2)  # LND -> NLD  [b, 197, 768]
 
-        x = x.mean(dim=1)       # [b, 768]
-        
         return x
 
     def forward(self, x):

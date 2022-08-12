@@ -34,10 +34,10 @@ if __name__ == "__main__":
     
     ################################
     attr_name = 'Male'
-    dataset_name = "male2female"        # domain a --> domain b
+    dataset_name = "male2female_align"        # domain a --> domain b
     ################################
 
-    celebA_folder_path = os.path.join(current_path, "img_celeba")
+    celebA_folder_path = os.path.join(current_path, "img_align_celeba")
     dataset_path = os.path.join(os.path.join(current_path, "datasets"), dataset_name)
     checkPath(dataset_path)
     logger.info(f"The path of dataset: {dataset_path}")

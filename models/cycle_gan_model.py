@@ -34,13 +34,8 @@ class CycleGANModel(BaseModel):
         """
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-<<<<<<< Updated upstream
-        # self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B']
-        self.loss_names = ['cycle_A','cycle_B']
-=======
         # self.loss_names = ['D_A', 'D_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B']
         self.loss_names = ['cycle_A', 'cycle_B', 'D_A', 'G_A', 'D_B', 'G_B']
->>>>>>> Stashed changes
         
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
@@ -54,12 +49,12 @@ class CycleGANModel(BaseModel):
         if self.isTrain:
             self.model_names = ['G_A_to_B', 'G_B_to_A', 'D_A', 'D_B']
         else:  # during test time, only load Gs
-            self.model_names = ['G_A', 'G_B']
+            self.model_names = ['G_A_to_B', 'G_B_to_A']
 
-        self.netG_A = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
-        self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        self.netG_A_to_B = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
+                                             not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        self.netG_B_to_A = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
+                                             not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:  # define discriminators
             self.netD_A = networks.define_D(opt.output_nc, opt.ndf, opt.netD, opt.batch_size,
@@ -74,7 +69,7 @@ class CycleGANModel(BaseModel):
             self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
             # define loss functions
             self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)  # define GAN loss.
-            self.criterionCycle = torch.nn.L1Loss()
+            self.criterionCycle = torch.nn.L1Loss() # ideally should have a choice of L1, L2 and Huber Loss
             self.criterionIdt = torch.nn.L1Loss()
             
             if opt.netG == 'style':
@@ -87,8 +82,8 @@ class CycleGANModel(BaseModel):
                 print("Using style generator optim params.")
                 self.optimizer_G = torch.optim.Adam(
                     itertools.chain(
-                        self.netG_A.module.get_training_parameters(), 
-                        self.netG_B.module.get_training_parameters()
+                        self.netG_A_to_B.module.get_training_parameters(),
+                        self.netG_B_to_A.module.get_training_parameters()
                     ), 
                     lr=opt.lr, 
                     betas=(opt.beta1, 0.999)
@@ -96,8 +91,8 @@ class CycleGANModel(BaseModel):
             else:
                 self.optimizer_G = torch.optim.Adam(
                     itertools.chain(
-                        self.netG_A.parameters(), 
-                        self.netG_B.parameters()
+                        self.netG_A_to_B.parameters(),
+                        self.netG_B_to_A.parameters()
                     ), 
                     lr=opt.lr, 
                     betas=(opt.beta1, 0.999))
@@ -119,17 +114,11 @@ class CycleGANModel(BaseModel):
             self.optimizers.append(self.optimizer_D)
 
             if opt.use_clip_inner:  # Can choose which inner layer to use, layer 12 is max
-                self.clip_encoder_realA = networks.CLIPInnerEncoder(layer_num=opt.loss_clip_layernum).cuda()
-                self.clip_encoder_realB = networks.CLIPInnerEncoder(layer_num=opt.loss_clip_layernum).cuda()
-                self.clip_encoder_recA = networks.CLIPInnerEncoder(layer_num=opt.loss_clip_layernum).cuda()
-                self.clip_encoder_recB = networks.CLIPInnerEncoder(layer_num=opt.loss_clip_layernum).cuda()
+                self.clip_distance_embedding = networks.CLIPInnerEncoder(layer_num=opt.loss_clip_layernum).cuda()
                 print(f"*** Build CLIPInnerEncoder for abstract loss, using [{opt.loss_clip_layernum}] inner layers ***")
             
             else:   # CLIPEncoder uses CLIP's final embedding of 512 tokens
-                self.clip_encoder_realA = networks.CLIPEncoder().cuda()
-                self.clip_encoder_realB = networks.CLIPEncoder().cuda()
-                self.clip_encoder_recA = networks.CLIPEncoder().cuda()
-                self.clip_encoder_recB = networks.CLIPEncoder().cuda()
+                self.clip_distance_embedding = networks.CLIPWithLinearHead().cuda()
                 print(f"*** Build CLIPEncoder for abstract loss, using final 512 tokens. ***")
             print("=="*50)
 
@@ -141,10 +130,10 @@ class CycleGANModel(BaseModel):
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        self.fake_B = self.netG_A(self.real_A)  # G_A(A)
-        self.rec_A = self.netG_B(self.fake_B)   # G_B(G_A(A))
-        self.fake_A = self.netG_B(self.real_B)  # G_B(B)
-        self.rec_B = self.netG_A(self.fake_A)   # G_A(G_B(B))
+        self.fake_B = self.netG_A_to_B(self.real_A)  # G_A(A)
+        self.rec_A = self.netG_B_to_A(self.fake_B)   # G_B(G_A(A))
+        self.fake_A = self.netG_B_to_A(self.real_B)  # G_B(B)
+        self.rec_B = self.netG_A_to_B(self.fake_A)   # G_A(G_B(B))
 
     def backward_D_basic(self, netD, real, fake):
         # Real
@@ -186,23 +175,23 @@ class CycleGANModel(BaseModel):
         #     self.loss_idt_A = 0
         #     self.loss_idt_B = 0
 
-        # self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True)
-        # self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
+        self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True)
+        self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
         # self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
         # self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
         
         # get cyc-clip-loss
-        self.real_A_clip = self.clip_encoder_realA(self.real_A)
-        self.real_B_clip = self.clip_encoder_realB(self.real_B)
-        self.rec_A_clip = self.clip_encoder_recA(self.rec_A)
-        self.rec_B_clip = self.clip_encoder_recB(self.rec_B)
+        self.real_A_clip = self.clip_distance_embedding(self.real_A)
+        self.real_B_clip = self.clip_distance_embedding(self.real_B)
+        self.rec_A_clip = self.clip_distance_embedding(self.rec_A)
+        self.rec_B_clip = self.clip_distance_embedding(self.rec_B)
 
         self.loss_cycle_A = self.criterionCycle(self.rec_A_clip, self.real_A_clip) * lambda_A
         self.loss_cycle_B = self.criterionCycle(self.rec_B_clip, self.real_B_clip) * lambda_B
 
         self.loss_G = (
-            # self.loss_G_A
-            # + self.loss_G_B
+            self.loss_G_A
+            + self.loss_G_B
             + self.loss_cycle_A 
             + self.loss_cycle_B 
             # + self.loss_idt_A
@@ -216,17 +205,14 @@ class CycleGANModel(BaseModel):
 
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
         if self.opt.netG =='style':
-            self.netG_B.module.clip_encoder.clip_model_visual.zero_grad()
-            self.netG_A.module.clip_encoder.clip_model_visual.zero_grad()
-            self.netG_B.module.stylegan_S.zero_grad()
-            self.netG_A.module.stylegan_S.zero_grad()
-            self.netG_B.module.stylegan_G.zero_grad()
-            self.netG_A.module.stylegan_G.zero_grad()
+            self.netG_B_to_A.module.clip_encoder.clip_model_visual.zero_grad()
+            self.netG_A_to_B.module.clip_encoder.clip_model_visual.zero_grad()
+            self.netG_B_to_A.module.stylegan_S.zero_grad()
+            self.netG_A_to_B.module.stylegan_S.zero_grad()
+            self.netG_B_to_A.module.stylegan_G.zero_grad()
+            self.netG_A_to_B.module.stylegan_G.zero_grad()
         
-        self.clip_encoder_realA.zero_grad()
-        self.clip_encoder_realB.zero_grad()
-        self.clip_encoder_recA.zero_grad()
-        self.clip_encoder_recB.zero_grad()
+        self.clip_distance_embedding.zero_grad()
 
         self.optimizer_G.zero_grad() 
 
