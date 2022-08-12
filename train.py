@@ -66,7 +66,8 @@ if __name__ == '__main__':
             losses = model.get_current_losses()
             if opt.use_wandb:
                 for k, v in losses.items():
-                    wandb.log({f'{k}': v})
+                    if ('G' in k) or ('D' in k and update_D):
+                        wandb.log({f'{k}': v})
 
             if total_iters % opt.display_freq == 0:   # display images on visdom and save images to a HTML file
                 save_result = total_iters % opt.update_html_freq == 0
