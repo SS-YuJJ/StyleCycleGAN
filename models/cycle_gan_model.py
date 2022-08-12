@@ -114,11 +114,11 @@ class CycleGANModel(BaseModel):
             self.optimizers.append(self.optimizer_D)
 
             if opt.use_clip_inner:  # Can choose which inner layer to use, layer 12 is max
-                self.clip_distance_embedding = networks.CLIPInnerEncoder(layer_num=opt.loss_clip_layernum).cuda()
+                self.clip_distance_embedding = networks.CLIPInnerEncoder(layer_num=opt.loss_clip_layernum).to(opt.gpu_ids[0])
                 print(f"*** Build CLIPInnerEncoder for abstract loss, using [{opt.loss_clip_layernum}] inner layers ***")
             
             else:   # CLIPEncoder uses CLIP's final embedding of 512 tokens
-                self.clip_distance_embedding = networks.CLIPWithLinearHead().cuda()
+                self.clip_distance_embedding = networks.CLIPWithLinearHead().to(opt.gpu_ids[0])
                 print(f"*** Build CLIPEncoder for abstract loss, using final 512 tokens. ***")
             print("=="*50)
 
