@@ -258,6 +258,7 @@ class Visualizer():
         message = '(epoch: %d, iters: %d, time: %.3f, data: %.3f) ' % (epoch, iters, t_comp, t_data)
         for k, v in losses.items():
             message += '%s: %.3f ' % (k, v)
+            
 
         print(message)  # print the message
         with open(self.log_name, "a") as log_file:

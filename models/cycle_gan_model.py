@@ -20,8 +20,8 @@ class CycleGANModel(BaseModel):
     def modify_commandline_options(parser, is_train=True):
         parser.set_defaults(no_dropout=True)  # default CycleGAN did not use dropout
         if is_train:
-            parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
-            parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
+            parser.add_argument('--lambda_A', type=float, default=5.0, help='weight for cycle loss (A -> B -> A)')
+            parser.add_argument('--lambda_B', type=float, default=5.0, help='weight for cycle loss (B -> A -> B)')
             parser.add_argument('--lambda_identity', type=float, default=0, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
 
         return parser
@@ -34,8 +34,13 @@ class CycleGANModel(BaseModel):
         """
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
+<<<<<<< Updated upstream
         # self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B']
         self.loss_names = ['cycle_A','cycle_B']
+=======
+        # self.loss_names = ['D_A', 'D_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B']
+        self.loss_names = ['cycle_A', 'cycle_B', 'D_A', 'G_A', 'D_B', 'G_B']
+>>>>>>> Stashed changes
         
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
@@ -47,7 +52,7 @@ class CycleGANModel(BaseModel):
         self.visual_names = visual_names_A + visual_names_B  # combine visualizations for A and B
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>.
         if self.isTrain:
-            self.model_names = ['G_A', 'G_B', 'D_A', 'D_B']
+            self.model_names = ['G_A_to_B', 'G_B_to_A', 'D_A', 'D_B']
         else:  # during test time, only load Gs
             self.model_names = ['G_A', 'G_B']
 
@@ -206,7 +211,7 @@ class CycleGANModel(BaseModel):
 
         self.loss_G.backward()
 
-    def optimize_parameters(self):
+    def optimize_parameters(self, update_D):
         self.forward()      # compute fake images and reconstruction imagesz
 
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
@@ -227,15 +232,21 @@ class CycleGANModel(BaseModel):
 
         self.backward_G()             # calculate gradients for G_A and G_B
         self.optimizer_G.step()       # update G_A and G_B's weights
-        
+
         # D_A and D_B
-        self.set_requires_grad([self.netD_A, self.netD_B], True)
+        if update_D:
+            self.set_requires_grad([self.netD_A, self.netD_B], True)
 
-        if 'clip' in self.opt.netD:
-            self.netD_B.module.clip_embedding.clip_model_visual.zero_grad()
-            self.netD_A.module.clip_embedding.clip_model_visual.zero_grad()
+            if 'clip' in self.opt.netD:
+                self.netD_B.module.clip_embedding.clip_model_visual.zero_grad()
+                self.netD_A.module.clip_embedding.clip_model_visual.zero_grad()
 
-        self.optimizer_D.zero_grad()   # set D_A and D_B's gradients to zero
-        self.backward_D_A()      # calculate gradients for D_A
-        self.backward_D_B()      # calculate graidents for D_B
-        self.optimizer_D.step()  # update D_A and D_B's weights
+            self.optimizer_D.zero_grad()   # set D_A and D_B's gradients to zero
+            self.backward_D_A()      # calculate gradients for D_A
+            self.backward_D_B()      # calculate graidents for D_B
+            self.optimizer_D.step()  # update D_A and D_B's weights
+
+        
+        else:
+            self.loss_D_A = 0
+            self.loss_D_B = 0

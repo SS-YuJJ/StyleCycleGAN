@@ -173,6 +173,7 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
             network_capacity = 8,
             load_from = 2225,
         )
+        net.clip_encoder.build((16,3,224,224))
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -196,7 +197,7 @@ def define_D(input_nc, ndf, netD, batch_size, n_layers_D=3, norm='batch', init_t
                                 num_outputs_discriminator=1,
                                 post_processing_type="conv",
                                 # post_processing_type="linear",
-                                train_clip_embedding=False,
+                                train_clip_embedding=True,
                             )
         net.build((batch_size, 3, 224, 224))
     else:
@@ -846,10 +847,17 @@ class StyleGenerator(nn.Module):
         self.num_layers = int(log2(self.image_size) - 1)
         self.latent_dim = 512
         
+<<<<<<< Updated upstream
         self.channel_mean = [0.48145466, 0.4578275, 0.40821073]
         self.channel_std = [0.26862954, 0.26130258, 0.27577711]
 
         self.clip_encoder = CLIPEncoder(model_name='ViT-B/16')
+=======
+        self.clip_encoder = CLIPSequentialOutput(model_name='ViT-B/16') # b, 197, 768
+        self.weighted_average = nn.Conv1d(in_channels=197, out_channels=1,
+                                          kernel_size=1, stride=1, padding=0,
+                                          bias=True)  # b, 1, 768
+>>>>>>> Stashed changes
 
         hid_dim = 512
         self.encoding_linears = nn.Sequential(
@@ -864,13 +872,19 @@ class StyleGenerator(nn.Module):
         if with_names:
             yield from (
                 list(self.encoding_linears.named_parameters())
+                + list(self.weighted_average.named_parameters())
                 + list(self.clip_encoder.named_parameters())
+                + list(self.stylegan_S.named_parameters())
+                + list(self.stylegan_G.named_parameters())
             )
 
         else:
             yield from (
                 list(self.encoding_linears.parameters())
+                + list(self.weighted_average.parameters())
                 + list(self.clip_encoder.parameters())
+                + list(self.stylegan_S.parameters())
+                + list(self.stylegan_G.parameters())
             )
 
     def forward(self, x):

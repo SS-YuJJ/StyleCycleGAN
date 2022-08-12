@@ -23,7 +23,7 @@ class BaseOptions():
         parser.add_argument('--total_iter_max', type=int, default=float("inf"), help=' ')
         parser.add_argument('--total_iter_from', type=int, default=0, help=' ')
         parser.add_argument('--loss_clip_layernum', type=int, default=12, help='The numeber of CLIP visual transformer layers to use, 12 to be the full transformer')
-        parser.add_argument('--use_clip_inner', action='store_true', help='Use the inner feature layers of clip')
+        parser.add_argument('--use_clip_inner', action='store_true', help='Use the inner feature layers of clip in cycle loss')
         parser.add_argument('--use_visdom', action='store_true', help='Use visdom display')
         
         # basic parameters
@@ -51,8 +51,8 @@ class BaseOptions():
         parser.add_argument('--serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
         parser.add_argument('--num_threads', default=4, type=int, help='# threads for loading data')
         parser.add_argument('--batch_size', type=int, default=1, help='input batch size')
-        parser.add_argument('--load_size', type=int, default=286, help='scale images to this size')
-        parser.add_argument('--crop_size', type=int, default=256, help='then crop to this size')
+        parser.add_argument('--load_size', type=int, default=128, help='scale images to this size')
+        parser.add_argument('--crop_size', type=int, default=128, help='then crop to this size')
         parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
         parser.add_argument('--preprocess', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop | crop | scale_width | scale_width_and_crop | none]')
         parser.add_argument('--no_flip', action='store_true', help='if specified, do not flip the images for data augmentation')

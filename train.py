@@ -24,6 +24,11 @@ from data import create_dataset
 from models import create_model
 from util.visualizer import Visualizer
 
+try:
+    import wandb
+except ImportError:
+    print('Warning: wandb package cannot be found. The option "--use_wandb" will result in error.')
+
 if __name__ == '__main__':
     opt = TrainOptions().parse()   # get training options
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
@@ -42,7 +47,7 @@ if __name__ == '__main__':
         visualizer.reset()              # reset the visualizer: make sure it saves the results to HTML at least once every epoch
         model.update_learning_rate()    # update learning rates in the beginning of every epoch.
         
-        if total_iters == opt.total_iter_max:
+        if total_iters > opt.total_iter_max:
             print("*********** Reached maximum total iter ***********")
             break
 
@@ -54,7 +59,14 @@ if __name__ == '__main__':
             total_iters += opt.batch_size
             epoch_iter += opt.batch_size
             model.set_input(data)         # unpack data from dataset and apply preprocessing
-            model.optimize_parameters()   # calculate loss functions, get gradients, update network weights
+            
+            update_D = True if (i+1)%3 == 0 else False
+            model.optimize_parameters(update_D)   # calculate loss functions, get gradients, update network weights
+
+            losses = model.get_current_losses()
+            if opt.use_wandb:
+                for k, v in losses.items():
+                    wandb.log({f'{k}': v})
 
             if total_iters % opt.display_freq == 0:   # display images on visdom and save images to a HTML file
                 save_result = total_iters % opt.update_html_freq == 0
@@ -75,7 +87,7 @@ if __name__ == '__main__':
 
             iter_data_time = time.time()
 
-            if total_iters == opt.total_iter_max:
+            if total_iters > opt.total_iter_max:
                 print("*********** Reached maximum total iter! ***********")
                 break
 

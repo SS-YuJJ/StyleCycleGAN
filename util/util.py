@@ -16,8 +16,8 @@ def tensor2im(input_image, imtype=np.uint8):
         imtype (type)        --  the desired type of the converted numpy array
     """
     input_image = torchvision.utils.make_grid(
-        input_image[0], 
-        1, 
+        input_image[:3], 
+        3, 
         normalize= True
     )
     
@@ -35,7 +35,6 @@ def tensor2im(input_image, imtype=np.uint8):
         
         if image_numpy.shape[0] == 1:  # grayscale to RGB
             image_numpy = np.tile(image_numpy, (3, 1, 1))
-
 
         image_numpy = (np.transpose(image_numpy, (1, 2, 0)))  * 255.0  # post-processing: tranpose and scaling
     else:  # if it is a numpy array, do nothing

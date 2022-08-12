@@ -1,5 +1,9 @@
 from data import unaligned_dataset
+<<<<<<< Updated upstream
 from models.networks import StyleGenerator, CLIPInnerEncoder, CLIPEncoder
+=======
+from models.networks import StyleGenerator, CLIPInnerEncoder
+>>>>>>> Stashed changes
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,6 +21,14 @@ from tqdm import tqdm
 import torchvision
 from torchvision.transforms import Resize, ToTensor
 from PIL import Image
+
+
+try:
+    import wandb
+except ImportError:
+    print('Warning: wandb package cannot be found. The option "--use_wandb" will result in error.')
+
+
 
 def checkPath(path):
     if not os.path.exists(path):
@@ -73,88 +85,99 @@ if __name__ == '__main__':
         ]
     ).to(DEVICE)
 
+    
+
     ######################################################################
     # Loop for sequntially training
     ######################################################################
-    # for i in range(1, 13):
+    # for layer_num in range(1, 13):
+    for layer_num in range(12, 0, -1):
 
-    #     # =============================================================
-    #     layer_num = i
-    #     img_dir = f'./imgs/innerCLIP_lr=1e-5_layer_{layer_num}'
-    #     checkPath(img_dir)
-    #     checkPath("./playground_losses/")
-    #     loss_log_path = f"./playground_losses/autoencoder_innerCLIP_lr=1e-5_layer_{layer_num}.txt"
-    #     print("**"*50)
-    #     print(f"Curreny number of CLIP inner feature layers used: [{layer_num}]")
-    #     print("**"*50)
-    #     logger.info(f"Images saved at: {img_dir}")
-    #     logger.info(f"Loss txt file saved at: {loss_log_path}")
-    #     # =============================================================
+        # =============================================================
+
+        img_dir = f'./imgs/innerCLIP_seqClipSytleG_lr=5e-6_layer_{layer_num}'
+        checkPath(img_dir)
+        checkPath("./playground_losses/")
         
-    #     generator = StyleGenerator(
-    #         image_size = IMG_SIZE, 
-    #         network_capacity = 8,
-    #     ).to(DEVICE)
+        loss_log_path = f"./playground_losses/innerCLIP_seqClipSytleG_lr=5e-6_layer_{layer_num}.txt"
+        print("**"*50)
+        print(f"Curreny number of CLIP inner feature layers used in cycle losses = [{layer_num}]")
+        print("**"*50)
+        logger.info(f"Images saved at: {img_dir}")
+        logger.info(f"Loss txt file saved at: {loss_log_path}")
 
-    #     optim = AdamW(
-    #         lr=1e-5,
-    #         params=generator.get_training_parameters(),
-    #         weight_decay=0.0,
-    #     )   
+        run_name = f"innerCLIP_seqClipSytleG_alltrained_lr=5e-6_layer_{layer_num}"
+        wandb_run = wandb.init(project='playground_lr=5e-6_fullSeqClipSytleG_innerCLIP_diffLayers', name=run_name) if not wandb.run else wandb.run
+        # =============================================================
+        
+        generator = StyleGenerator(
+            image_size = IMG_SIZE, 
+            network_capacity = 8,
+            load_from=2225,
+        )
+        generator.clip_encoder.build((16,3,224,224))
+        generator.to(DEVICE)
+
+        optim = AdamW(
+            lr=5e-6,
+            params=generator.get_training_parameters(),
+            weight_decay=0.0,
+        )   
 
         
-    #     pred_clip_encoder = CLIPInnerEncoder(layer_num=layer_num).to(DEVICE)
-    #     real_clip_encoder = CLIPInnerEncoder(layer_num=layer_num).to(DEVICE)
+        clip_encoder = CLIPInnerEncoder(layer_num=layer_num).to(DEVICE)
+        
+        with open(loss_log_path,"a") as f:
+            now = time.strftime("%c")
+            f.write("===================== Time: [%s] ========== StyleGenerator uses FULL sequential CLIP embedding at the beginning (not 512 tokens) ==============\n"% now)
 
 
-    #     with open(loss_log_path,"a") as f:
-    #         now = time.strftime("%c")
-    #         f.write("===================== Time: [%s] ========================\n"% now)
-
-    #     with tqdm(total=TOTAL_iter) as pbar:
+        with tqdm(total=TOTAL_iter) as pbar:
             
-    #         for idx_step in range(TOTAL_iter):
-    #             pred = generator.forward(x_ref)
+            for idx_step in range(TOTAL_iter):
+                pred = generator.forward(x_ref)
 
-    #             pred_clip = pred_clip_encoder(pred)
-    #             real_clip = real_clip_encoder(x_ref)
+                pred_clip = clip_encoder(pred)
+                real_clip = clip_encoder(x_ref)
 
-    #             loss = F.l1_loss(pred_clip, real_clip)
+                loss = F.l1_loss(pred_clip, real_clip)
 
-    #             pred_clip_encoder.zero_grad()
-    #             real_clip_encoder.zero_grad()
+                clip_encoder.zero_grad()
 
-    #             generator.clip_encoder.zero_grad()
-    #             generator.stylegan_S.zero_grad()
-    #             generator.stylegan_G.zero_grad()
+                generator.clip_encoder.zero_grad()
+                generator.stylegan_S.zero_grad()
+                generator.stylegan_G.zero_grad()
 
-    #             optim.zero_grad()
+                optim.zero_grad()
                 
-    #             loss.backward()
-    #             optim.step()
+                loss.backward()
+                optim.step()
 
-    #             loss_np=loss.detach().cpu().numpy()
-    #             pbar.set_postfix(train_loss=loss_np, lr=optim.param_groups[0]["lr"])
-    #             pbar.update(1)
+                loss_np=loss.detach().cpu().numpy()
+                wandb.log({'Train loss':loss_np})
+                pbar.set_postfix(train_loss=loss_np, lr=optim.param_groups[0]["lr"])
+                pbar.update(1)
 
-    #             if idx_step % 50 == 0 and idx_step != 0:
-    #                 save_tensor = torch.concat([x_ref, pred], dim=0)
-    #                 save_tensor = torchvision.utils.make_grid(
-    #                     save_tensor, 
-    #                     len(x_ref), 
-    #                     normalize=True,
-    #                     value_range=None,
-    #                     scale_each=True,
-    #                     pad_value=0
-    #                 )
+                if idx_step % 50 == 0 and idx_step != 0:
+                    save_tensor = torch.concat([x_ref, pred], dim=0)
+                    save_tensor = torchvision.utils.make_grid(
+                        save_tensor, 
+                        len(x_ref), 
+                        normalize=True,
+                        value_range=None,
+                        scale_each=True,
+                        pad_value=0
+                    )
                     
-    #                 image_numpy = tensor2im(save_tensor)
-    #                 img_path = os.path.join(img_dir, 'innerCLIP_loss_layer_%d_[%d_iters].png' % (layer_num, idx_step))
-    #                 save_image(image_numpy, img_path)
+                    image_numpy = tensor2im(save_tensor)
+                    img_path = os.path.join(img_dir, 'innerClipLoss_seqClipSytleG_layer_%d_[%d_iters].png' % (layer_num, idx_step))
+                    
+                    wandb.log({"Per 50-epoch result":wandb.Image(image_numpy)})
+                    save_image(image_numpy, img_path)
                 
-    #             with open(loss_log_path,"a") as f:
-    #                 item = loss.detach().cpu().numpy()
-    #                 f.write('%s\n' % item)
+                with open(loss_log_path,"a") as f:
+                    item = loss.detach().cpu().numpy()
+                    f.write('%s\n' % item)
 
 
 
@@ -165,28 +188,29 @@ if __name__ == '__main__':
 
     # =============================================================
 
-    img_dir = f'./imgs/innerCLIP_lr=1e-5_fullCLIP512tokens'
-    checkPath(img_dir)
-    checkPath("./playground_losses/")
-    loss_log_path = f"./playground_losses/innerCLIP_lr=1e-5_fullCLIP512tokens.txt"
+    # img_dir = f'./imgs/innerCLIP_lr=1e-5_fullCLIP512tokens'
+    # checkPath(img_dir)
+    # checkPath("./playground_losses/")
+    # loss_log_path = f"./playground_losses/innerCLIP_lr=1e-5_fullCLIP512tokens.txt"
 
-    logger.info(f"Images saved at: {img_dir}")
-    logger.info(f"Loss txt file saved at: {loss_log_path}")
+    # logger.info(f"Images saved at: {img_dir}")
+    # logger.info(f"Loss txt file saved at: {loss_log_path}")
     # =============================================================
     
-    generator = StyleGenerator(
-        image_size = IMG_SIZE, 
-        network_capacity = 8,
-        load_from = 2225,
-    ).to(DEVICE)
+    # generator = StyleGenerator(
+    #     image_size = IMG_SIZE, 
+    #     network_capacity = 8,
+    #     load_from = 2225,
+    # ).to(DEVICE)
 
-    optim = AdamW(
-        lr=1e-5,
-        params=generator.get_training_parameters(),
-        weight_decay=0.0,
-    )   
+    # optim = AdamW(
+    #     lr=1e-5,
+    #     params=generator.get_training_parameters(),
+    #     weight_decay=0.0,
+    # )   
 
     
+<<<<<<< Updated upstream
     pred_clip_encoder = CLIPEncoder().to(DEVICE)
     real_clip_encoder = CLIPEncoder().to(DEVICE)
 
@@ -194,48 +218,67 @@ if __name__ == '__main__':
     with open(loss_log_path,"a") as f:
         now = time.strftime("%c")
         f.write("===================== Time: [%s] ========================\n"% now)
+=======
+    # pred_clip_encoder = CLIPEncoder().to(DEVICE)
+    # real_clip_encoder = CLIPEncoder().to(DEVICE)
 
-    with tqdm(total=TOTAL_iter) as pbar:
+
+    # with open(loss_log_path,"a") as f:
+    #     now = time.strftime("%c")
+    #     f.write("===================== Time: [%s] ========================\n"% now)
+>>>>>>> Stashed changes
+
+    # with tqdm(total=TOTAL_iter) as pbar:
         
-        for idx_step in range(TOTAL_iter):
-            pred = generator.forward(x_ref)
+    #     for idx_step in range(TOTAL_iter):
+    #         pred = generator.forward(x_ref)
 
+<<<<<<< Updated upstream
             pred_clip = pred_clip_encoder(pred)
             real_clip = real_clip_encoder(x_ref)
+=======
+    #         pred_clip = pred_clip_encoder(pred)
+    #         real_clip = real_clip_encoder(x_ref)
+>>>>>>> Stashed changes
 
-            loss = F.l1_loss(pred_clip, real_clip)
+    #         loss = F.l1_loss(pred_clip, real_clip)
 
+<<<<<<< Updated upstream
             pred_clip_encoder.zero_grad()
             real_clip_encoder.zero_grad()
+=======
+    #         pred_clip_encoder.zero_grad()
+    #         real_clip_encoder.zero_grad()
+>>>>>>> Stashed changes
 
-            generator.clip_encoder.zero_grad()
-            generator.stylegan_S.zero_grad()
-            generator.stylegan_G.zero_grad()
+    #         generator.clip_encoder.zero_grad()
+    #         generator.stylegan_S.zero_grad()
+    #         generator.stylegan_G.zero_grad()
 
-            optim.zero_grad()
+    #         optim.zero_grad()
             
-            loss.backward()
-            optim.step()
+    #         loss.backward()
+    #         optim.step()
 
-            loss_np=loss.detach().cpu().numpy()
-            pbar.set_postfix(train_loss=loss_np, lr=optim.param_groups[0]["lr"])
-            pbar.update(1)
+    #         loss_np=loss.detach().cpu().numpy()
+    #         pbar.set_postfix(train_loss=loss_np, lr=optim.param_groups[0]["lr"])
+    #         pbar.update(1)
 
-            if idx_step % 50 == 0 and idx_step != 0:
-                save_tensor = torch.concat([x_ref, pred], dim=0)
-                save_tensor = torchvision.utils.make_grid(
-                    save_tensor, 
-                    len(x_ref), 
-                    normalize=True,
-                    value_range=None,
-                    scale_each=True,
-                    pad_value=0
-                )
+    #         if idx_step % 50 == 0 and idx_step != 0:
+    #             save_tensor = torch.concat([x_ref, pred], dim=0)
+    #             save_tensor = torchvision.utils.make_grid(
+    #                 save_tensor, 
+    #                 len(x_ref), 
+    #                 normalize=True,
+    #                 value_range=None,
+    #                 scale_each=True,
+    #                 pad_value=0
+    #             )
                 
-                image_numpy = tensor2im(save_tensor)
-                img_path = os.path.join(img_dir, 'innerCLIP_loss_fullCLIP512tokens_[%d_iters].png' % (idx_step))
-                save_image(image_numpy, img_path)
+    #             image_numpy = tensor2im(save_tensor)
+    #             img_path = os.path.join(img_dir, 'innerCLIP_loss_fullCLIP512tokens_[%d_iters].png' % (idx_step))
+    #             save_image(image_numpy, img_path)
             
-            with open(loss_log_path,"a") as f:
-                item = loss.detach().cpu().numpy()
-                f.write('%s\n' % item)
+    #         with open(loss_log_path,"a") as f:
+    #             item = loss.detach().cpu().numpy()
+    #             f.write('%s\n' % item)
