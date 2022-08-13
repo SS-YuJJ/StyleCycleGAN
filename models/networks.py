@@ -167,7 +167,7 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'style':
         net = StyleGenerator(
-            device = gpu_ids,
+            device = gpu_ids[0],
             # image_size = 256, 
             image_size = 128, 
             # network_capacity = 16,
