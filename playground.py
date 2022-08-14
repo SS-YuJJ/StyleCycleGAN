@@ -1,9 +1,5 @@
 from data import unaligned_dataset
-<<<<<<< Updated upstream
-from models.networks import StyleGenerator, CLIPInnerEncoder, CLIPEncoder
-=======
-from models.networks import StyleGenerator, CLIPInnerEncoder
->>>>>>> Stashed changes
+from models.networks import CLIPWithLinearHead, StyleGenerator, CLIPInnerEncoder
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -91,23 +87,29 @@ if __name__ == '__main__':
     # Loop for sequntially training
     ######################################################################
     # for layer_num in range(1, 13):
-    for layer_num in range(12, 0, -1):
+    for layer_num in range(1, 0, -1):      # 12->1
 
         # =============================================================
 
-        img_dir = f'./imgs/innerCLIP_seqClipSytleG_lr=5e-6_layer_{layer_num}'
+        img_dir = f'./playground_imgs/autoEnc_lr=5e-6_fullSeqClipSytleG_innerClip_layer_{layer_num}'
+        loss_log_path = f"./playground_losses/autoEnc_lr=5e-6_fullSeqClipSytleG_innerClip_loss_layer_{layer_num}.txt"
         checkPath(img_dir)
         checkPath("./playground_losses/")
+
+        run_name = f"innerClip_layer_{layer_num}"
+        wandb_run = wandb.init(
+            project='autoEnc_lr=5e-6_fullSeqClipSytleG_innerClip_diffLayers', 
+            name=run_name,
+            reinit=True
+        ) if not wandb.run else wandb.run
         
-        loss_log_path = f"./playground_losses/innerCLIP_seqClipSytleG_lr=5e-6_layer_{layer_num}.txt"
+        # ============================================================
         print("**"*50)
-        print(f"Curreny number of CLIP inner feature layers used in cycle losses = [{layer_num}]")
+        print(f"Curreny number of CLIP inner feature layers used in losses = [{layer_num}]")
         print("**"*50)
         logger.info(f"Images saved at: {img_dir}")
         logger.info(f"Loss txt file saved at: {loss_log_path}")
-
-        run_name = f"innerCLIP_seqClipSytleG_alltrained_lr=5e-6_layer_{layer_num}"
-        wandb_run = wandb.init(project='playground_lr=5e-6_fullSeqClipSytleG_innerCLIP_diffLayers', name=run_name) if not wandb.run else wandb.run
+        
         # =============================================================
         
         generator = StyleGenerator(
@@ -129,7 +131,7 @@ if __name__ == '__main__':
         
         with open(loss_log_path,"a") as f:
             now = time.strftime("%c")
-            f.write("===================== Time: [%s] ========== StyleGenerator uses FULL sequential CLIP embedding at the beginning (not 512 tokens) ==============\n"% now)
+            f.write("==== Time: [%s] ===== aligned small dataset ==== StyleGenerator uses FULL sequential CLIP embedding at the beginning (not 512 tokens) ==============\n"% now)
 
 
         with tqdm(total=TOTAL_iter) as pbar:
@@ -143,11 +145,9 @@ if __name__ == '__main__':
                 loss = F.l1_loss(pred_clip, real_clip)
 
                 clip_encoder.zero_grad()
-
                 generator.clip_encoder.zero_grad()
                 generator.stylegan_S.zero_grad()
                 generator.stylegan_G.zero_grad()
-
                 optim.zero_grad()
                 
                 loss.backward()
@@ -170,7 +170,7 @@ if __name__ == '__main__':
                     )
                     
                     image_numpy = tensor2im(save_tensor)
-                    img_path = os.path.join(img_dir, 'innerClipLoss_seqClipSytleG_layer_%d_[%d_iters].png' % (layer_num, idx_step))
+                    img_path = os.path.join(img_dir, 'autoEnc_lr=5e-6_fullSeqClipSytleG_innerClip_layer_%d_[%d_iters].png' % (layer_num, idx_step))
                     
                     wandb.log({"Per 50-epoch result":wandb.Image(image_numpy)})
                     save_image(image_numpy, img_path)
@@ -178,7 +178,7 @@ if __name__ == '__main__':
                 with open(loss_log_path,"a") as f:
                     item = loss.detach().cpu().numpy()
                     f.write('%s\n' % item)
-
+        wandb_run.finish()
 
 
     ######################################################################
@@ -188,68 +188,54 @@ if __name__ == '__main__':
 
     # =============================================================
 
-    # img_dir = f'./imgs/innerCLIP_lr=1e-5_fullCLIP512tokens'
+    # img_dir = f'./playground_imgs/autoEnc_lr=5e-6_fullSeqClipSytleG_linearClip512'
     # checkPath(img_dir)
     # checkPath("./playground_losses/")
-    # loss_log_path = f"./playground_losses/innerCLIP_lr=1e-5_fullCLIP512tokens.txt"
+    # loss_log_path = f"./playground_losses/autoEnc_lr=5e-6_fullSeqClipSytleG_linearClip512_loss.txt"
 
     # logger.info(f"Images saved at: {img_dir}")
     # logger.info(f"Loss txt file saved at: {loss_log_path}")
-    # =============================================================
+
+    # run_name = f"linearClip_512token"
+    # wandb_run = wandb.init(
+    #         project='autoEnc_lr=5e-6_fullSeqClipSytleG_innerClip_diffLayers', 
+    #         name=run_name,
+    #         reinit=True
+    #     ) if not wandb.run else wandb.run
+    # # =============================================================
     
     # generator = StyleGenerator(
     #     image_size = IMG_SIZE, 
     #     network_capacity = 8,
     #     load_from = 2225,
-    # ).to(DEVICE)
-
+    # )
+    # generator.clip_encoder.build((16,3,224,224))
+    # generator.to(DEVICE)
+    
     # optim = AdamW(
-    #     lr=1e-5,
+    #     lr=5e-6,
     #     params=generator.get_training_parameters(),
     #     weight_decay=0.0,
     # )   
 
     
-<<<<<<< Updated upstream
-    pred_clip_encoder = CLIPEncoder().to(DEVICE)
-    real_clip_encoder = CLIPEncoder().to(DEVICE)
-
-
-    with open(loss_log_path,"a") as f:
-        now = time.strftime("%c")
-        f.write("===================== Time: [%s] ========================\n"% now)
-=======
-    # pred_clip_encoder = CLIPEncoder().to(DEVICE)
-    # real_clip_encoder = CLIPEncoder().to(DEVICE)
-
+    # clip_encoder = CLIPWithLinearHead().to(DEVICE)
 
     # with open(loss_log_path,"a") as f:
     #     now = time.strftime("%c")
-    #     f.write("===================== Time: [%s] ========================\n"% now)
->>>>>>> Stashed changes
+    #     f.write("==== Time: [%s] ===== aligned small dataset == 512 linear clip loss == StyleGenerator uses FULL sequential CLIP embedding at the beginning (512 tokens) ==============\n"% now)
 
     # with tqdm(total=TOTAL_iter) as pbar:
         
     #     for idx_step in range(TOTAL_iter):
     #         pred = generator.forward(x_ref)
 
-<<<<<<< Updated upstream
-            pred_clip = pred_clip_encoder(pred)
-            real_clip = real_clip_encoder(x_ref)
-=======
-    #         pred_clip = pred_clip_encoder(pred)
-    #         real_clip = real_clip_encoder(x_ref)
->>>>>>> Stashed changes
+    #         pred_clip = clip_encoder(pred)
+    #         real_clip = clip_encoder(x_ref)
 
     #         loss = F.l1_loss(pred_clip, real_clip)
 
-<<<<<<< Updated upstream
-            pred_clip_encoder.zero_grad()
-            real_clip_encoder.zero_grad()
-=======
-    #         pred_clip_encoder.zero_grad()
-    #         real_clip_encoder.zero_grad()
->>>>>>> Stashed changes
+    #         clip_encoder.zero_grad()
 
     #         generator.clip_encoder.zero_grad()
     #         generator.stylegan_S.zero_grad()
@@ -261,6 +247,7 @@ if __name__ == '__main__':
     #         optim.step()
 
     #         loss_np=loss.detach().cpu().numpy()
+    #         wandb.log({'Train loss':loss_np})
     #         pbar.set_postfix(train_loss=loss_np, lr=optim.param_groups[0]["lr"])
     #         pbar.update(1)
 
@@ -276,9 +263,11 @@ if __name__ == '__main__':
     #             )
                 
     #             image_numpy = tensor2im(save_tensor)
-    #             img_path = os.path.join(img_dir, 'innerCLIP_loss_fullCLIP512tokens_[%d_iters].png' % (idx_step))
+    #             img_path = os.path.join(img_dir, 'autoEnc_lr=5e-6_fullSeqClipSytleG_linearClip512_[%d_iters].png' % (idx_step))
+    #             wandb.log({"Per 50-epoch result":wandb.Image(image_numpy)})
     #             save_image(image_numpy, img_path)
             
     #         with open(loss_log_path,"a") as f:
     #             item = loss.detach().cpu().numpy()
     #             f.write('%s\n' % item)
+    # wandb_run.finish()

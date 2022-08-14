@@ -60,7 +60,7 @@ if __name__ == '__main__':
             epoch_iter += opt.batch_size
             model.set_input(data)         # unpack data from dataset and apply preprocessing
             
-            update_D = True if (i+1)%3 == 0 else False
+            update_D = True if (i+1) % opt.GD_update_ratio == 0 else False
             model.optimize_parameters(update_D)   # calculate loss functions, get gradients, update network weights
 
             losses = model.get_current_losses()

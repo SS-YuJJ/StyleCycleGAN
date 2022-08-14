@@ -871,8 +871,8 @@ class StyleGenerator(nn.Module):
                 list(self.encoding_linears.named_parameters())
                 + list(self.weighted_average.named_parameters())
                 + list(self.clip_encoder.named_parameters())
-                + list(self.stylegan_S.named_parameters())
-                + list(self.stylegan_G.named_parameters())
+                # + list(self.stylegan_S.named_parameters())
+                # + list(self.stylegan_G.named_parameters())
             )
 
         else:
@@ -880,8 +880,8 @@ class StyleGenerator(nn.Module):
                 list(self.encoding_linears.parameters())
                 + list(self.weighted_average.parameters())
                 + list(self.clip_encoder.parameters())
-                + list(self.stylegan_S.parameters())
-                + list(self.stylegan_G.parameters())
+                # + list(self.stylegan_S.parameters())
+                # + list(self.stylegan_G.parameters())
             )
 
     def forward(self, x):

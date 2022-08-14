@@ -25,6 +25,7 @@ class BaseOptions():
         parser.add_argument('--loss_clip_layernum', type=int, default=12, help='The numeber of CLIP visual transformer layers to use, 12 to be the full transformer')
         parser.add_argument('--use_clip_inner', action='store_true', help='Use the inner feature layers of clip in cycle loss')
         parser.add_argument('--use_visdom', action='store_true', help='Use visdom display')
+        parser.add_argument('--GD_update_ratio', type=int, default=1, help='The frequency D is updated compared to G')
         
         # basic parameters
         parser.add_argument('--dataroot', required=True, help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')

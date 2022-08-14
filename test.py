@@ -4,6 +4,7 @@ from data import create_dataset
 from models import create_model
 from util.visualizer import save_images
 from util import html
+import wandb
 
 if __name__ == '__main__':
     opt = TestOptions().parse()  # get test options
@@ -17,6 +18,8 @@ if __name__ == '__main__':
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
+
+    wandb_run = wandb.init(project='StyleCycleGAN_test', name=f"{opt.name}_[TEST]", config=opt)
 
     # create a website
     web_dir = os.path.join(opt.results_dir, opt.name, '{}_{}'.format(opt.phase, opt.epoch))  # define the website directory
@@ -39,4 +42,5 @@ if __name__ == '__main__':
         if i % 100 == 0:  # save images to an HTML file
             print('processing (%04d)-th image... %s' % (i, img_path))
         save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize, use_wandb=False)
+    
     webpage.save()  # save the HTML
