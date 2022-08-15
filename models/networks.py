@@ -912,7 +912,7 @@ class StyleGenerator(nn.Module):
         generated_images = self.stylegan_G(w_styles, noise)
         # generated_images shape = [b, 3, 256, 256]
 
-        generated_images = F.sigmoid(generated_images)
+        generated_images = torch.sigmoid(generated_images)
         
         return generated_images
 
