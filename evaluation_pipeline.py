@@ -15,7 +15,7 @@ from tensorflow.keras.applications.inception_v3 import preprocess_input
 from tensorflow.keras.datasets import cifar10
 from skimage.transform import resize
 from numpy import asarray
-
+import argparse
 import torch
 from torch import nn
 import time
@@ -195,12 +195,22 @@ def inception_score_evaluate(
 ###############################################################
 #                          Main
 ###############################################################
+
+
+parser = argparse.ArgumentParser(description='Evaluation pipeline parser.')
+
+parser.add_argument("--model_name", type=str, help="Name of the model.")
+parser.add_argument("--load_iter", type=int, help="The number of trained iters.")
+
+args = parser.parse_args()
+
 ########### classification #############
 BATCH_SIZE = 16
 NUM_WORKERS = 1
 TOTAL_EPOCH = 1
 DEVICE="cuda:0"
-MODEL_NAME = "male2female_clipFullconv_styleG_cyccliploss"
+MODEL_NAME = args.model_name
+LOAD_ITER = args.load_iter
 ########################################
 
 if __name__ == "__main__":
@@ -209,7 +219,7 @@ if __name__ == "__main__":
     label_names = ["male", "female"]
     classifier_file_name = "UTKFace_male2female_epoch_26.pth"           # Classifier index 26 has best val accuracy
     classifier_path = os.path.join(os.path.join(root, "evaluation"), classifier_file_name)
-    result_folder = os.path.join(os.path.join(root, "results"), MODEL_NAME)
+    result_folder = os.path.join(os.path.join(root, "results"), MODEL_NAME, f"test_latest_iter{LOAD_ITER}")
     evaluation_result_folder= "./evaluation/pipeline_results"
     checkPath(evaluation_result_folder)
     evaluation_result_path = os.path.join(evaluation_result_folder, f"{MODEL_NAME}_eval_results.txt")
@@ -218,7 +228,6 @@ if __name__ == "__main__":
     logger.info(f"Model results taken from path: {result_folder}")
 
     img_paths, img_labels = make_eval_dataset(dir=result_folder)        # 0 for male, 1 for female
-
 
     # ============= Evaluate Inception Score =============
     IS_eval_dataset = ISEvaluateDataset(img_paths)
