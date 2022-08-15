@@ -23,6 +23,7 @@ from options.train_options import TrainOptions
 from data import create_dataset
 from models import create_model
 from util.visualizer import Visualizer
+import os, time
 
 try:
     import wandb
@@ -39,6 +40,11 @@ if __name__ == '__main__':
     model.setup(opt)               # regular setup: load and print networks; create schedulers
     visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots
     total_iters = opt.total_iter_from                # the total number of training iterations
+
+    inNout_log_path = os.path.join(opt.checkpoints_dir, opt.name, "input_output_log.txt")
+    now = time.strftime("%c")
+    with open(inNout_log_path, 'a') as f:
+        f.write(f"================ New Run Input Output Info {now} ================\n")
 
     for epoch in range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
         epoch_start_time = time.time()  # timer for entire epoch
@@ -64,6 +70,22 @@ if __name__ == '__main__':
             model.optimize_parameters(update_D)   # calculate loss functions, get gradients, update network weights
 
             losses = model.get_current_losses()
+
+            # ============== log input & output infos ===============
+            # with open(inNout_log_path, 'a') as f:
+            #     f.write(f"Iter idx = {total_iters}\n")
+            #     f.write("[real_A]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
+            #         model.real_A.data.min(), model.real_A.data.max(), model.real_A.data.mean(), model.real_A.data.std()))
+            #     f.write("[real_B]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
+            #         model.real_B.data.min(), model.real_B.data.max(), model.real_B.data.mean(), model.real_B.data.std()))
+            #     f.write("[fake_A]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
+            #         model.fake_A.data.min(), model.fake_A.data.max(), model.fake_A.data.mean(), model.fake_A.data.std()))
+            #     f.write("[fake_B]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
+            #         model.fake_B.data.min(), model.fake_B.data.max(), model.fake_B.data.mean(), model.fake_B.data.std()))
+
+            # =======================================================
+
+
             if opt.use_wandb:
                 for k, v in losses.items():
                     if ('G' in k) or ('D' in k and update_D):

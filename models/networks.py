@@ -198,7 +198,8 @@ def define_D(input_nc, ndf, netD, batch_size, n_layers_D=3, norm='batch', init_t
                                 num_outputs_discriminator=1,
                                 post_processing_type="conv",
                                 # post_processing_type="linear",
-                                train_clip_embedding=True,
+                                # train_clip_embedding=True,
+                                train_clip_embedding=False,
                             )
         net.build((batch_size, 3, 224, 224))
     else:
@@ -871,8 +872,8 @@ class StyleGenerator(nn.Module):
                 list(self.encoding_linears.named_parameters())
                 + list(self.weighted_average.named_parameters())
                 + list(self.clip_encoder.named_parameters())
-                # + list(self.stylegan_S.named_parameters())
-                # + list(self.stylegan_G.named_parameters())
+                + list(self.stylegan_S.named_parameters())
+                + list(self.stylegan_G.named_parameters())
             )
 
         else:
@@ -880,8 +881,8 @@ class StyleGenerator(nn.Module):
                 list(self.encoding_linears.parameters())
                 + list(self.weighted_average.parameters())
                 + list(self.clip_encoder.parameters())
-                # + list(self.stylegan_S.parameters())
-                # + list(self.stylegan_G.parameters())
+                + list(self.stylegan_S.parameters())
+                + list(self.stylegan_G.parameters())
             )
 
     def forward(self, x):
@@ -911,6 +912,8 @@ class StyleGenerator(nn.Module):
         generated_images = self.stylegan_G(w_styles, noise)
         # generated_images shape = [b, 3, 256, 256]
 
+        generated_images = F.sigmoid(generated_images)
+        
         return generated_images
 
 ###################################################################################
