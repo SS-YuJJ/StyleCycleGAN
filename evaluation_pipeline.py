@@ -2,19 +2,6 @@ from loguru import logger
 from rich.traceback import install
 
 import os
-from math import floor
-from numpy import ones
-from numpy import expand_dims
-from numpy import log
-from numpy import mean
-from numpy import std
-from numpy import exp
-from numpy.random import shuffle
-from tensorflow.keras.applications.inception_v3 import InceptionV3
-from tensorflow.keras.applications.inception_v3 import preprocess_input
-from tensorflow.keras.datasets import cifar10
-from skimage.transform import resize
-from numpy import asarray
 import argparse
 import torch
 from torch import nn
@@ -31,7 +18,7 @@ import numpy as np
 from scipy.stats import entropy
 import tqdm
 from torch.utils.data import Dataset, DataLoader
-import torchvision.datasets as dset
+
 import torchvision.transforms as transforms
 from evaluation.classifier import ClassifierDatasetUTK, Classifier
 
