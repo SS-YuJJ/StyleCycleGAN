@@ -25,8 +25,14 @@ class BaseOptions():
         parser.add_argument('--loss_clip_layernum', type=int, default=12, help='The numeber of CLIP visual transformer layers to use, 12 to be the full transformer')
         parser.add_argument('--use_clip_inner', action='store_true', help='Use the inner feature layers of clip in cycle loss')
         parser.add_argument('--use_visdom', action='store_true', help='Use visdom display')
-        parser.add_argument('--GD_update_ratio', type=int, default=1, help='The frequency D is updated compared to G')
         
+        parser.add_argument('--GD_update_ratio', type=int, default=1, help='The frequency D is updated compared to G')
+
+        parser.add_argument('--G_train_SG', action='store_true', help='Train the whole StyleGenerator')
+        parser.add_argument('--D_train_enc', action='store_true', help='Train only post processing layers')
+        parser.add_argument('--D_post_type', type=str, default='conv', help='type of post processing layers after clip encoder in D')
+        parser.add_argument('--train_scratch', action='store_true', help='Train everything from scratch')
+
         # basic parameters
         parser.add_argument('--dataroot', required=True, help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
         parser.add_argument('--name', type=str, default='experiment_name', help='name of the experiment. It decides where to store samples and models')

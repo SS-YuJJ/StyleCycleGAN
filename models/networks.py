@@ -109,7 +109,7 @@ def init_weights(net, init_type='normal', init_gain=0.02):
     net.apply(init_func)  # apply the initialization function <init_func>
 
 
-def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
+def init_net(net, train_from_scratch, init_type='normal', init_gain=0.02, gpu_ids=[]):
     """Initialize a network: 1. register CPU/GPU device (with multi-GPU support); 2. initialize the network weights
     Parameters:
         net (network)      -- the network to be initialized
@@ -123,11 +123,14 @@ def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
         assert(torch.cuda.is_available())
         net.to(gpu_ids[0])
         net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs
-    # init_weights(net, init_type, init_gain=init_gain)
+    
+    if train_from_scratch:
+        init_weights(net, init_type, init_gain=init_gain)
+
     return net
 
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
+def define_G(G_train_SG, train_from_scratch, input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
     """Create a generator
 
     Parameters:
@@ -167,6 +170,7 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'style':
         net = StyleGenerator(
+            G_train_SG = G_train_SG,
             device = gpu_ids[0],
             # image_size = 256, 
             image_size = 128, 
@@ -175,12 +179,13 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
             load_from = 2225,
         )
         net.clip_encoder.build((16,3,224,224))
+        
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
-    return init_net(net, init_type, init_gain, gpu_ids)
+    return init_net(net, train_from_scratch, init_type, init_gain, gpu_ids)
 
 
-def define_D(input_nc, ndf, netD, batch_size, n_layers_D=3, norm='batch', init_type='normal', init_gain=0.02, gpu_ids=[]):
+def define_D(D_train_enc, train_from_scratch, D_post_type, input_nc, ndf, netD, batch_size, n_layers_D=3, norm='batch', init_type='normal', init_gain=0.02, gpu_ids=[]):
 
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
@@ -192,19 +197,18 @@ def define_D(input_nc, ndf, netD, batch_size, n_layers_D=3, norm='batch', init_t
     elif netD == 'pixel':     # classify if each pixel is real or fake
         net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer)
     elif netD == 'clip':
-        net = CLIPDiscriminator(model_name='ViT-B/16',
+        net = CLIPDiscriminator(
+                                model_name='ViT-B/16',
                                 num_post_processing_layers=3,
                                 num_filters_post_processing_layers=128,
                                 num_outputs_discriminator=1,
-                                post_processing_type="conv",
-                                # post_processing_type="linear",
-                                # train_clip_embedding=True,
-                                train_clip_embedding=False,
+                                post_processing_type=D_post_type,
+                                train_clip_embedding=D_train_enc,
                             )
         net.build((batch_size, 3, 224, 224))
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)
-    return init_net(net, init_type, init_gain, gpu_ids)
+    return init_net(net, train_from_scratch, init_type, init_gain, gpu_ids)
 
 
 ##############################################################################
@@ -650,7 +654,7 @@ class CLIPDiscriminator(nn.Module):
         num_filters_post_processing_layers: int,
         num_outputs_discriminator: int,
         post_processing_type: str,      # linear | conv
-        train_clip_embedding: bool=False,
+        train_clip_embedding: bool,
     ):
         super().__init__()
         self.is_built = False
@@ -692,7 +696,9 @@ class CLIPDiscriminator(nn.Module):
         self.post_processing_layers = nn.ModuleDict() # shape -> [b, 197, 768]
 
         if self.post_processing_type == "linear":
-            out = out.mean(dim=1)
+            # out = out.mean(dim=1)
+            out = out.view(out.shape[0],-1)
+
             for i in range(self.num_post_processing_layers):
                 self.post_processing_layers[
                     f"post_processing_layer_{i}"
@@ -766,8 +772,9 @@ class CLIPDiscriminator(nn.Module):
         out = self.clip_embedding.forward(x)
 
         if self.post_processing_type == "linear":
-            out = out.mean(dim=1)
-
+            # out = out.mean(dim=1)
+            out = out.view(out.shape[0],-1)
+            
             for i in range(self.num_post_processing_layers):
                 out = self.post_processing_layers[f"post_processing_layer_{i}"](out)
                 out = F.leaky_relu(out)
@@ -791,6 +798,7 @@ class CLIPDiscriminator(nn.Module):
 
 class StyleGenerator(nn.Module):
     def __init__(self,
+            G_train_SG:bool,
             device,
             image_size = 256, 
             network_capacity = 16,
@@ -798,6 +806,8 @@ class StyleGenerator(nn.Module):
         ):
         super().__init__()
         
+        self.G_train_SG = G_train_SG
+
         stylegan_model_args = dict(
         rank = device,
         name = 'styleGAN2_celebA',
@@ -869,24 +879,37 @@ class StyleGenerator(nn.Module):
 
     def get_training_parameters(self, with_names=False):
         if with_names:
-            yield from (
-                list(self.encoding_linears.named_parameters())
-                + list(self.weighted_average.named_parameters())
-                + list(self.clip_encoder.named_parameters())
-                + list(self.stylegan_G.blocks[5].named_parameters())
-#                 + list(self.stylegan_S.named_parameters())
-#                 + list(self.stylegan_G.named_parameters())
-            )
-
+            if self.G_train_SG:
+                yield from (
+                    list(self.encoding_linears.named_parameters())
+                    + list(self.weighted_average.named_parameters())
+                    + list(self.clip_encoder.named_parameters())
+                    + list(self.stylegan_S.named_parameters())
+                    + list(self.stylegan_G.named_parameters())
+                )
+            else:
+                yield from (
+                    list(self.encoding_linears.named_parameters())
+                    + list(self.weighted_average.named_parameters())
+                    + list(self.clip_encoder.named_parameters())
+                    + list(self.stylegan_G.blocks[5].named_parameters())
+                )
         else:
-            yield from (
-                list(self.encoding_linears.parameters())
-                + list(self.weighted_average.parameters())
-                + list(self.clip_encoder.parameters())
-                + list(self.stylegan_G.blocks[5].parameters())
-#                 + list(self.stylegan_S.parameters())
-#                 + list(self.stylegan_G.parameters())
-            )
+            if self.G_train_SG:
+                yield from (
+                    list(self.encoding_linears.parameters())
+                    + list(self.weighted_average.parameters())
+                    + list(self.clip_encoder.parameters())
+                    + list(self.stylegan_S.parameters())
+                    + list(self.stylegan_G.parameters())
+                )
+            else:
+                yield from (
+                    list(self.encoding_linears.parameters())
+                    + list(self.weighted_average.parameters())
+                    + list(self.clip_encoder.parameters())
+                    + list(self.stylegan_G.blocks[5].parameters())
+                )
 
     def forward(self, x):
         batch_size = x.shape[0]
@@ -914,9 +937,7 @@ class StyleGenerator(nn.Module):
 
         generated_images = self.stylegan_G(w_styles, noise)
         # generated_images shape = [b, 3, 256, 256]
-        
-        # generated_images = self.conv_sigmoid(generated_images)
-        # generated_images = torch.sigmoid(generated_images)
+    
         
         return generated_images
 

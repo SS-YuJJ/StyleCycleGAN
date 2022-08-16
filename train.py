@@ -80,10 +80,8 @@ if __name__ == '__main__':
             wandb.log({'rec_B_min': model.rec_B.data.min(), 'rec_B_max': model.rec_B.data.max(),'rec_B_mean': model.rec_B.data.mean(),'rec_B_std': model.rec_B.data.std()})
             # =======================================================
 
-
-            if opt.use_wandb:
+            if opt.use_wandb:           # plot all losses
                 for k, v in losses.items():
-                    if ('G' in k) or ('D' in k and update_D):
                         wandb.log({f'{k}': v})
 
             if total_iters % opt.display_freq == 0:   # display images on visdom and save images to a HTML file
