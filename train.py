@@ -82,6 +82,7 @@ if __name__ == '__main__':
 
             if opt.use_wandb:           # plot all losses
                 for k, v in losses.items():
+                    if ('D' not in k) or ('D' in k and update_D):
                         wandb.log({f'{k}': v})
 
             if total_iters % opt.display_freq == 0:   # display images on visdom and save images to a HTML file
