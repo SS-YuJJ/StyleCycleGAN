@@ -72,16 +72,20 @@ if __name__ == '__main__':
             losses = model.get_current_losses()
 
             # ============== log input & output infos ===============
-            # with open(inNout_log_path, 'a') as f:
-            #     f.write(f"Iter idx = {total_iters}\n")
-            #     f.write("[real_A]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
-            #         model.real_A.data.min(), model.real_A.data.max(), model.real_A.data.mean(), model.real_A.data.std()))
-            #     f.write("[real_B]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
-            #         model.real_B.data.min(), model.real_B.data.max(), model.real_B.data.mean(), model.real_B.data.std()))
-            #     f.write("[fake_A]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
-            #         model.fake_A.data.min(), model.fake_A.data.max(), model.fake_A.data.mean(), model.fake_A.data.std()))
-            #     f.write("[fake_B]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
-            #         model.fake_B.data.min(), model.fake_B.data.max(), model.fake_B.data.mean(), model.fake_B.data.std()))
+            with open(inNout_log_path, 'a') as f:
+                f.write(f"Iter idx = {total_iters}\n")
+                f.write("[real_A]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
+                    model.real_A.data.min(), model.real_A.data.max(), model.real_A.data.mean(), model.real_A.data.std()))
+                f.write("[real_B]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
+                    model.real_B.data.min(), model.real_B.data.max(), model.real_B.data.mean(), model.real_B.data.std()))
+                f.write("[fake_A]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
+                    model.fake_A.data.min(), model.fake_A.data.max(), model.fake_A.data.mean(), model.fake_A.data.std()))
+                f.write("[fake_B]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
+                    model.fake_B.data.min(), model.fake_B.data.max(), model.fake_B.data.mean(), model.fake_B.data.std()))
+                f.write("[rec_A]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
+                    model.rec_A.data.min(), model.rec_A.data.max(), model.rec_A.data.mean(), model.rec_A.data.std()))
+                f.write("[rec_B]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
+                    model.rec_B.data.min(), model.rec_B.data.max(), model.rec_B.data.mean(), model.rec_B.data.std()))
 
             # =======================================================
 
