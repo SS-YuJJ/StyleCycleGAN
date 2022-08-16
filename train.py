@@ -72,21 +72,12 @@ if __name__ == '__main__':
             losses = model.get_current_losses()
 
             # ============== log input & output infos ===============
-            with open(inNout_log_path, 'a') as f:
-                f.write(f"Iter idx = {total_iters}\n")
-                f.write("[real_A]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
-                    model.real_A.data.min(), model.real_A.data.max(), model.real_A.data.mean(), model.real_A.data.std()))
-                f.write("[real_B]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
-                    model.real_B.data.min(), model.real_B.data.max(), model.real_B.data.mean(), model.real_B.data.std()))
-                f.write("[fake_A]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
-                    model.fake_A.data.min(), model.fake_A.data.max(), model.fake_A.data.mean(), model.fake_A.data.std()))
-                f.write("[fake_B]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
-                    model.fake_B.data.min(), model.fake_B.data.max(), model.fake_B.data.mean(), model.fake_B.data.std()))
-                f.write("[rec_A]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
-                    model.rec_A.data.min(), model.rec_A.data.max(), model.rec_A.data.mean(), model.rec_A.data.std()))
-                f.write("[rec_B]\t min = {:.6f}; max = {:.6f}; mean = {:.6f}; std = {:.6f};\n".format(
-                    model.rec_B.data.min(), model.rec_B.data.max(), model.rec_B.data.mean(), model.rec_B.data.std()))
-
+            wandb.log({'real_A_min': real_A.data.min(), 'real_A_max': real_A.data.max(),'real_A_mean': real_A.data.mean(),'real_A_std': real_A.data.std()})
+            wandb.log({'real_B_min': real_B.data.min(), 'real_B_max': real_B.data.max(),'real_B_mean': real_B.data.mean(),'real_B_std': real_B.data.std()})
+            wandb.log({'fake_A_min': fake_A.data.min(), 'fake_A_max': fake_A.data.max(),'fake_A_mean': fake_A.data.mean(),'fake_A_std': fake_A.data.std()})
+            wandb.log({'fake_B_min': fake_B.data.min(), 'fake_B_max': fake_B.data.max(),'fake_B_mean': fake_B.data.mean(),'fake_B_std': fake_B.data.std()})
+            wandb.log({'rec_A_min': rec_A.data.min(), 'rec_A_max': rec_A.data.max(),'rec_A_mean': rec_A.data.mean(),'rec_A_std': rec_A.data.std()})
+            wandb.log({'rec_B_min': rec_B.data.min(), 'rec_B_max': rec_B.data.max(),'rec_B_mean': rec_B.data.mean(),'rec_B_std': rec_B.data.std()})
             # =======================================================
 
 
