@@ -865,6 +865,10 @@ class StyleGenerator(nn.Module):
             nn.Linear(hid_dim, 512),
             nn.LayerNorm(hid_dim),
         )
+        
+        self.conv_sigmoid = nn.Conv2d(in_channels=3, out_channels=3,
+                                          kernel_size=1, stride=1, padding=0,
+                                          bias=True)
 
     def get_training_parameters(self, with_names=False):
         if with_names:
@@ -872,8 +876,9 @@ class StyleGenerator(nn.Module):
                 list(self.encoding_linears.named_parameters())
                 + list(self.weighted_average.named_parameters())
                 + list(self.clip_encoder.named_parameters())
-                + list(self.stylegan_S.named_parameters())
-                + list(self.stylegan_G.named_parameters())
+                + list(self.conv_sigmoid.named_parameters())
+#                 + list(self.stylegan_S.named_parameters())
+#                 + list(self.stylegan_G.named_parameters())
             )
 
         else:
@@ -881,8 +886,9 @@ class StyleGenerator(nn.Module):
                 list(self.encoding_linears.parameters())
                 + list(self.weighted_average.parameters())
                 + list(self.clip_encoder.parameters())
-                + list(self.stylegan_S.parameters())
-                + list(self.stylegan_G.parameters())
+                + list(self.conv_sigmoid.parameters())
+#                 + list(self.stylegan_S.parameters())
+#                 + list(self.stylegan_G.parameters())
             )
 
     def forward(self, x):
@@ -911,7 +917,8 @@ class StyleGenerator(nn.Module):
 
         generated_images = self.stylegan_G(w_styles, noise)
         # generated_images shape = [b, 3, 256, 256]
-
+        
+        generated_images = self.conv_sigmoid(generated_images)
         generated_images = torch.sigmoid(generated_images)
         
         return generated_images
