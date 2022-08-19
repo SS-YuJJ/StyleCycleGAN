@@ -252,6 +252,8 @@ if __name__ == "__main__":
     # Test the model
 
     test_correct_count = 0
+    probs_A = []
+    probs_B = []
     with torch.no_grad():
         with tqdm.tqdm(total=len(classify_dataloader)) as pbar:
             for i, classi_data in enumerate(classify_dataloader):
@@ -262,9 +264,14 @@ if __name__ == "__main__":
 
                 label = label.detach().cpu().numpy().astype(np.float32)
                 pred = pred.detach().cpu().numpy()
+                
                 pred_label = np.where(pred<0.5, 0, 1)
                 test_correct_count += np.equal(pred_label, label).astype(np.int16).sum()
-
+                for i in range(pred.shape[0]):
+                    if pred_label[i] == 0: # 0 for male
+                        probs_A.append(pred[i])
+                    else:
+                        probs_B.append(pred[i])
                 pbar.update(1)
     
 
@@ -272,6 +279,15 @@ if __name__ == "__main__":
     print("**" * 50)
     print("Classification accuracy = {:.3f}%".format(test_acc))
     print("**" * 50)
+    print("25 Male probabilities:\n", probs_A[:25])
+    print("**" * 50)
+    print("25 Female probabilities:\n", probs_B[:25])
+    print("**" * 50)
+    prob_A_mean = np.array(probs_A).mean()
+    prob_A_mean = np.array(probs_B).mean()
+    print(f"Male prob mean = {prob_A_mean}")
+    print(f"Female prob mean = {prob_B_mean}")
+
 
     with open(evaluation_result_path, 'a') as f:
         now = time.strftime("%c")
