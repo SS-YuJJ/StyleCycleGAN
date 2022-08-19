@@ -179,7 +179,7 @@ def define_G(G_train_SG, train_from_scratch, input_nc, output_nc, ngf, netG, nor
             load_from = 2225,
         )
         net.clip_encoder.build((16,3,224,224))
-    elif netG == 'origin_cyc'
+    elif netG == 'origin_cyc':
         net = ResnetGenerator(
             input_nc=3, 
             output_nc=3, 
