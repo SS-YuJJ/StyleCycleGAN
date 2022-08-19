@@ -376,7 +376,7 @@ class ResnetGenerator(nn.Module):
                 ]
             )
 
-    def build(self, input_shape: Tuple[int, int, int, int]):
+    def build(self, input_shape):
         
         model = [nn.ReflectionPad2d(3),
                  nn.Conv2d(self.input_nc, self.ngf, 
