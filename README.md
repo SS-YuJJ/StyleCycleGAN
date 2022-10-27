@@ -11,5 +11,8 @@ Architecture: \
 Results of autoencoder when using different layers of CLIP embedding: \
 ![image](https://github.com/SS-YuJJ/StyleCycleGAN/blob/main/pics/autoencoder_diff_CLIPlayers.png)
 
+Generations as the number of iterations grows:
+![image](https://github.com/SS-YuJJ/StyleCycleGAN/blob/main/pics/diff_iters.png)
+
 Results when different modules are used as pre-trained or not, fine-tuned or fixed during training: \
 ![image](https://github.com/SS-YuJJ/StyleCycleGAN/blob/main/pics/diff_train_setting.png)
